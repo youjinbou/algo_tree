@@ -4,8 +4,7 @@ struct
 
   open Array
 
-  let debug s = prerr_string s;prerr_newline ()
-
+  let debug s = (* prerr_string s;prerr_newline *)()
 
   module type BtreeConf = 
   sig
@@ -27,6 +26,7 @@ struct
     let a_min = O.max / 2
     let a_max = O.max
     
+
     type cell_t = 
 	EmptyCell 
       | Cell of (O.key_t * O.value_t)       
@@ -61,16 +61,16 @@ struct
     let is_underflow a = (a.(a_min-1)=EmptyCell)
 
 
+    let get_key x = match x with
+	EmptyCell  -> ""
+      | Cell (a,b) -> O.string_of_key a
+
     (* -- comparison values filter ---------------- *)
 
     type compare_t = Below | Above | Equal
 
-    let compare k1 k2 =
-      match O.compare k1 k2 with
-	  -1 -> Below
-	|  1 -> Above
-	|  0 -> Equal
-	|  _ -> raise (Compare_error)
+    let compare k1 k2 = let c = O.compare k1 k2 in
+      if c < 0 then Below else if c > 0 then Above else Equal
 
 
     (* - array manipulation -- *)
@@ -78,11 +78,15 @@ struct
 
     (* shift right of count elements the array a *)
     let shift_r count a = 
-      blit a 0 a (count) ((Array.length a) - count)
+      try (
+	blit a 0 a (count) ((Array.length a) - count)
+      ) with Invalid_argument x -> raise (Invalid_argument ("shift_r:"^x))
     
     (* shift left of count elements the array a *)
     let shift_l count a  = 
+      try (
       blit a (count) a 0 ((Array.length a) - count)
+      ) with Invalid_argument x -> raise (Invalid_argument ("shift_l:"^x))
 
 
     (* 3 [ 1 2 3 4 5 6 7 ] -> [ 1 2 3 4 _ _ _ ]  *)
@@ -95,12 +99,16 @@ struct
 
     let clear_nodes = fill_end EmptyNode
 
-    let shift_right a i = blit a i a (i+1) ((Array.length a) - i - 1)
+    let shift_right a i = 
+      try (
+	blit a i a (i+1) ((Array.length a) - i - 1)
+      ) with Invalid_argument x -> raise (Invalid_argument ("shift_right:"^x))
 
     (* [ 1 2 3 4 5 6 ] -> [ 1 3 4 5 6 _ ]  *)
     let shift_left  a i = 
+      try (
       blit a (i+1) a i ((Array.length a) - i - 1)
-
+      ) with Invalid_argument x -> raise (Invalid_argument ("shift_left:"^x))
     (* - iterators etc.... -- *)
 
 
@@ -125,17 +133,19 @@ struct
 
     let dump tree filename directory =
       let file = open_out (directory^"/"^filename^".dot") in
-
+	
       let dump_link parent child =
 	output_string file (parent^" -> "^child^":n;\n")
-
+	  
       and range cells = 
 	let sz = size_cells cells in
+	  if sz = 0 then 0,"n_empty_"
+	    else
 	  match cells.(0), cells.(sz-1) with
 	      Cell(k0,v0), Cell(k1,v1) ->
 		sz, ("n_"^(O.string_of_key k0)^"_"^(O.string_of_key k1)^"_")
 	    | _                              -> invalid_arg "Btree.range"
-	    
+		
       and record_struct node cells = 
 	let rec build_lbl s i = 
 	  if i = O.max then (s^"\" ];")
@@ -179,41 +189,33 @@ struct
     (* -- find a value in tree -------------------- *)
 
     let find tree k =
-      
+      let debug x = () in
       let rec find_node node k =
 	match node with 
-	    EmptyNode   -> debug ("find_node '"^(O.string_of_key k)^"': hit an empty node");raise Not_found
-	  | Leaf (a)    -> find_in_leaf a k
-	  | Node (s,a)  -> find_in_node a s k
+	    EmptyNode   -> raise Not_found
+	  | Leaf (a)    -> find_leaf_r a k 0
+	  | Node (s,a)  -> find_node_r a s k 0
 
-      and find_in_leaf a k =
-	let debug k i m = debug ("find_in_leaf k:'"^(O.string_of_key k)^"' i:'"^(string_of_int i)^"' : "^m)
-	in
-	let rec find_leaf_r cells k i = 
- 	  match cells.(i) with 
-	      EmptyCell    -> debug k i "empty cell"; raise Not_found
-	    | Cell(ck,v)   ->
-		match compare k ck with
-		    Below -> (debug k i (" k < cell.k '"^(O.string_of_key ck)^"'"); raise Not_found)
-		  | Equal -> (prerr_string ("B.find_in_leaf: found "^(O.string_of_key ck));prerr_newline ();v)
-		  | Above -> find_leaf_r cells k (i+1)
-	in 
-	  find_leaf_r a k 0
-	     
-      and find_in_node a s k =
-	let rec find_node_r cells s k i =
-	  if i = a_max 
-	  then 
-	    find_node s.(i) k 
-	  else 
-	    match cells.(i) with 
-		EmptyCell       -> find_node s.(i) k
-	      | Cell(ck, v)     -> match compare k ck with
-		    Below -> find_node s.(i) k
-		  | Equal -> (prerr_string ("B.find_in_node: found "^(O.string_of_key ck));prerr_newline ();v)
-		  | Above -> find_node_r cells s k (i+1)
-	in
-	  find_node_r a s k 0
+      and find_leaf_r cells k i = 
+	match cells.(i) with 
+	    EmptyCell    -> raise Not_found
+	  | Cell(ck,v)   ->
+	      match compare k ck with
+		  Below -> raise Not_found
+		| Equal -> v
+		| Above -> find_leaf_r cells k (i+1)
+		  
+      and find_node_r cells s k i =
+	if i = a_max 
+	then 
+	  find_node s.(i) k 
+	else 
+	  match cells.(i) with 
+	      EmptyCell       -> find_node s.(i) k
+	    | Cell(ck, v)     -> match compare k ck with
+		  Below -> find_node s.(i) k
+		| Equal -> v
+		| Above -> find_node_r cells s k (i+1)
 	     
       in 
 	find_node tree.root k
@@ -311,21 +313,26 @@ struct
 	 [ 1 2 x 3 4 _ ]
       *)
       let fuse_cells cl cr i =
+	try (
 	let offset = size_cells cl 
 	and len = size_cells cr in
 	  cl.(offset) <- i;
 	  blit cr 0 cl (offset+1) len
+	) with Invalid_argument x -> raise (Invalid_argument ("fuse_cells:"^x))
 
       and fuse_nodes il ir =
+	try (
 	let offset = size_nodes il
 	and len = size_nodes ir in
-	  blit ir 0 il (offset) len	  
+	  blit ir 0 il (offset) len
+	) with Invalid_argument x -> raise (Invalid_argument ("fuse_nodes:"^x))
 
       (* left rotation of i entries
 	 [ a 1 b 2 c _   _   _ _ ] [x] [ d 3 e 4 f 5 g 6 h 7 i _ ] 2
 	 [ a 1 b 2 c x d 3 e _ _ ] [4] [ f 5 g 6 h 7 i _   _   _ ]
       *)
       and rotate_cells_left cl cr cells i count =
+	try (
 	let lsz  = size_cells cl 
 	and rsz  = size_cells cr
 	in
@@ -334,10 +341,11 @@ struct
 	  blit cr 0 cl (lsz+1) (count-1);        (* copy cright beginning to cleft end *)
 	  cells.(i) <- cr.(count-1);             (* set new median *)
 	  shift_l count cr;                      (* shift cr to the left *)
-	  clear_cells cr (a_max-rsz+count);      (* clear cr end *)
-
+	  clear_cells cr (a_max-rsz+count)       (* clear cr end *)
+	) with Invalid_argument x -> raise (Invalid_argument ("rotate_cells_left:"^x))
 
       and rotate_nodes_left sl sr count =
+	try (
 	let lsz  = size_nodes sl 
 	and rsz  = size_nodes sr
 	in
@@ -345,13 +353,14 @@ struct
 	  blit sr 0 sl (lsz) count;            (* copy sright beginning to sleft end *)
 	  shift_l count sr;                      (* shift sright array *)
 	  clear_nodes sr (a_max+1+count-rsz)
-
+	) with Invalid_argument x -> raise (Invalid_argument ("rotate_nodes_left:"^x))
 
       (* right rotation of i entries
 	 [ a 1 b 2 c 3 d 4 e _ _ ] [x] [ f 5 g 6 h 7 i _   _   _ ] 2
 	 [ a 1 b 2 c _   _   _ _ ] [3] [ d 4 e x f 5 g 6 h 7 i _ ] 
       *)
       and rotate_cells_right cl cr cells i count =
+	try (
 	let lsz = size_cells cl 
 	and rsz = size_cells cr
 	in
@@ -361,8 +370,10 @@ struct
 	  blit cl (lsz-count+1) cr 0 (count-1);  (* copy cl end to cr beginning *)
 	  cells.(i) <- cl.(lsz-count);           (* set new median  *)
 	  fill cl (lsz-count) (count) EmptyCell  (* clear cl end    *)
+	) with Invalid_argument x -> raise (Invalid_argument ("rotate_cells_right:"^x))
 	    
       and rotate_nodes_right sl sr count =
+	try (
 	let lsz = size_nodes sl 
 	and rsz = size_nodes sr
 	in
@@ -370,10 +381,11 @@ struct
 	  shift_r count sr;                      (* shift sr        *)
 	  blit sl (lsz-count) sr 0 count;        (* copy sl end to sr beginning *)
 	  fill sl (lsz-count) (count) EmptyNode  (* clear sl end    *)
-	    
+	) with Invalid_argument x -> raise (Invalid_argument ("rotate_nodes_right:"^x))	    	    
       in
 
       let check_underflow subs cells i =
+	try (
 	let rec check_u_r subs cells i =
 	match subs.(i), subs.(i+1) with
 	    Node(il, cl), Node(ir, cr) -> 
@@ -420,6 +432,7 @@ struct
 	in
 	  if i = 0 then check_u_r subs cells 0
 	  else check_u_r subs cells (i-1)
+	) with Invalid_argument x -> raise (Invalid_argument ("check_underflow:"^x))	    	    
 		
       in
 
@@ -455,19 +468,19 @@ struct
       and swap_and_remove source i node =
 	match node with
 	    EmptyNode  -> invalid_arg "Btree.remove: no next value for in node removal"
-	  | Leaf (a)   -> swap_of_leaf source i a
- 	  | Node (s,a) -> swap_of_node source i s a
+	  | Leaf (cells)   -> (
+	      let r = source.(i) in 
+		debug ("swap_of_leaf: replacing with "^(get_key (cells.(0))));
+		source.(i) <- cells.(0);              (* swap the cells *)
+		shift_left cells 0;                   (* remove the target cell *)
+		is_underflow cells
+	    )
+ 	  | Node (subs,cells) -> 
+	      if swap_and_remove source i subs.(0) then (check_underflow subs cells 0;is_underflow cells) else false
 
-      and swap_of_leaf source i cells =
-	let r = source.(i) in 
-	  source.(i) <- cells.(0);              (* swap the cells *)
-	  shift_left cells 0;                   (* remove the target cell *)
-	  is_underflow cells
 
-      and swap_of_node source i subs cells =
-	if swap_and_remove source i subs.(0) then (check_underflow subs cells i;is_underflow cells) else false	      
-
-      in remove_r tree.root k; 
+      in debug ("remove "^(O.string_of_key k));
+	remove_r tree.root k;
 	match tree.root with
 	    EmptyNode  -> ()
 	  | Node (s,a) -> if size_cells a = 0 then tree.root <- s.(0) (* since all cells have been suppressed, the remaining is in the 1st subnode *)

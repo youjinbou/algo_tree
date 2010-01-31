@@ -4,12 +4,12 @@ open Rbtree
 open Rbtree_imp
 open Random
 
-let _ = Random.init 0
+let _ = Random.init 23423
 
-let dump_data = false
+let dump_data = true
 
 let min = 10
-let max = 10000
+let max = 2000
 
 let dotty_folder = "dots"
 
@@ -32,7 +32,7 @@ module BTC =
 struct
   type key_t   = int
   type value_t = int
-  let compare k1 k2 = if k1 < k2 then -1 else if k1 > k2 then 1 else 0
+  let compare (k1: int) (k2: int) = if k1 < k2 then -1 else if k1 > k2 then 1 else 0
   let max = 4
   let string_of_key = string_of_int
 end
@@ -43,8 +43,8 @@ let btree_test () =
 
   let dump = if dump_data then (fun t f d -> IB.dump t f d) else (fun t f d -> ())
   in
-  let lstart = 10
-  and lend   = 100 
+  let lstart = min
+  and lend   = max 
   in 
   let size   = lend-lstart
   in
@@ -78,7 +78,6 @@ let btree_test () =
     randomize_order checkarray size;
 
 
-
     for i = 0 to (size-1) do 
       let x =  checkarray.(i) in
 	try 
@@ -102,15 +101,16 @@ let btree_test () =
     for i = 0 to (size-1) do 
 	let x =  checkarray.(i)
 	in (
-	  try 
-	    IB.remove tree x;
-	    dump tree ("remove_"^(string_of_int i)^"_"^(string_of_int x)) dotty_folder
-	  with e -> (
-	    assert_failure ("failed to remove "^(string_of_int x))   
-	  )
+	    try
+	      IB.remove tree x;
+	      dump tree ("remove_"^(string_of_int i)^"_"^(string_of_int x)) dotty_folder
+	    with e -> ( 
+	      assert_failure ("failed to remove "^(string_of_int x))   
+	    )
 	  );
+	  (*
 	  checkcontent tree (i+1); 
-
+	  *)
 	  assert_raises ~msg:("item n°"^(string_of_int i)^":"^(string_of_int x))(Not_found) (fun () -> IB.find tree x)
     done 
 
@@ -262,8 +262,7 @@ let rbtree_imp_test () =
       let x = checkarray.(i) in (
 	  try
 	    ignore (IRBi.remove t x);
-	    dump t ("remove_"^(string_of_int i)^"_"^(string_of_int x)) dotty_folder;
-	    ignore (IRBi.check t) 
+	    dump t ("remove_"^(string_of_int i)^"_"^(string_of_int x)) dotty_folder
 	  with 
 	      Not_found -> assert_failure ("failed to remove "^(string_of_int x))
 	    | IRBi.Inconsistency (a,b,c) -> assert_failure ("consistency check : error at node "^(string_of_int (fst a))^" with left="^(string_of_int b)^" and right="^(string_of_int c))
@@ -301,9 +300,9 @@ let rbtree_imp_test () =
 
 let tree_test_list =
   TestLabel ("[test int list]", TestList [
-	      (* TestLabel ("Btree", TestCase(fun _ -> btree_test ())); *)
-	       TestLabel ("Rbtree (functional)", TestCase(fun _ -> rbtree_fun_test ()))(* ; 
-	      TestLabel ("Rbtree (imperative)", TestCase(fun _ -> rbtree_imp_test ())) *)
+	       TestLabel ("Btree", TestCase(fun _ -> btree_test ())); 
+	       TestLabel ("Rbtree (functional)", TestCase(fun _ -> rbtree_fun_test ())); 
+	       TestLabel ("Rbtree (imperative)", TestCase(fun _ -> rbtree_imp_test ())) 
 	     ]
 	    )
 

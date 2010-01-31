@@ -5,6 +5,8 @@ module Rbtree_imp =
 struct
 
   let debug x = (* prerr_string x; prerr_newline *) ()
+  let debug_set = false
+
 
   module type OrderedType =
   sig 
@@ -178,7 +180,7 @@ struct
        http://en.wikipedia.org/wiki/Red_black_tree
     *)
     let add tree v =
-
+      let debug x = () in
       (* check_bal_* will check the node structure for cases as in the article 
 	 node is the node to check
       *)
@@ -197,7 +199,7 @@ struct
 	     *     nl nr                nl
 	     *) 
 	    Black,Red,Black when node.l.r.c = Red -> ( 
-	      (* case 4 + 5 *) debug "case 4 l";
+	      (* case 4 + 5 *) if debug_set then debug "case 4 l";
 	      let nl = node.l.r.l
 	      and p  = node.l
 	      and n  = node.l.r
@@ -219,7 +221,7 @@ struct
 	   *  [n] [pr]               [pr][u]
 	   *) 
 	  | Black,Red,Black when node.l.l.c = Red -> (
-	      (* case 5 *) debug "case 5 l";
+	      (* case 5 *) if debug_set then debug "case 5 l";
 	      rotate_right node;
 	      node.c   <- Black;
 	      node.l.c <- Red;
@@ -228,7 +230,7 @@ struct
 	    )
 	      
 	  | Black, Red, Red                       -> (
-	      (* case 3 *) debug "case 3 l";
+	      (* case 3 *) if debug_set then debug "case 3 l";
 	      match node.l.l.c, node.l.r.c, node.r.l.c, node.r.r.c with (* we need one child to be red *)
 		  Red, _, _, _  
 		| _, Red, _, _
@@ -240,7 +242,7 @@ struct
 		    c+2
 		| _             -> (c-1)
 	    )
-	  | _                                     -> debug "case else else l"; (c-1)
+	  | _                                     -> if debug_set then debug "case else else l"; (c-1)
 	      
       and check_bal_r node c =
 	if c = 0 
@@ -258,7 +260,7 @@ struct
 	     *   nl nr                     nr
 	     *) 
 	    Black, Black, Red when node.r.l.c = Red -> (
-	      (* case 4+5 *) debug "case 4 r";
+	      (* case 4+5 *) if debug_set then debug "case 4 r";
 	      let nr  = node.r.l.r
 	      and p   = node.r
 	      and n   = node.r.l
@@ -280,7 +282,7 @@ struct
 	   *      [pl][n]         [u] [pl]
 	   *) 
 	  | Black, Black, Red when node.r.r.c = Red -> (
-	      (* case 5 *) debug "case 5 r";
+	      (* case 5 *) if debug_set then debug "case 5 r";
 	      rotate_left node;
 	      node.c   <- Black;
 	      node.r.c <- Red;
@@ -289,7 +291,7 @@ struct
 	    )
 
 	  | Black, Red, Red                         -> (
-	      (* case 3 *) debug "case 3 r"; 
+	      (* case 3 *) if debug_set then debug "case 3 r"; 
 	      match node.l.l.c, node.l.r.c, node.r.l.c, node.r.r.c with (* we need one child to be red *)
 		  Red, _, _, _  
 		| _, Red, _, _
@@ -301,7 +303,7 @@ struct
 		    c+2
 		| _             -> (c-1)
 	    )
-	  | _                                       -> debug "case else else r"; (c-1)
+	  | _                                       -> if debug_set then debug "case else else r"; (c-1)
 
 
       in
@@ -363,16 +365,16 @@ struct
 
       (*    modified node (left), sibling (right), sibling children *)
       let rec check_remove_l p c = 
-	let debug x = let v = match p.v with Content v -> string_of_value v | _ -> "" in  debug ("check_remove_l: "^x^" - "^v) 
+	let debug x = (* let v = match p.v with Content v -> string_of_value v | _ -> "" in  debug ("check_remove_l: "^x^" - "^v) *) ()
 	in 
 	let check3456 p =
 	  match p.c, p.l.c, p.r.c, p.r.r.c, p.r.l.c with
 	      Black, Black, Black, Black, Black ->
-		debug "case 3";(* case 3 *)
+		if debug_set then debug "case 3";(* case 3 *)
 		p.r.c <- Red;
 		true
 	    | Red, Black, Black, Black, Black   -> 
-		debug "case 4";(* case 4 *)
+		if debug_set then debug "case 4";(* case 4 *)
 		p.c   <- Black; 
 		p.r.c <- Red;
 		false
@@ -386,7 +388,7 @@ struct
 	     *                              slr [sr]
 	     *)
 	    | _, Black, Black, Black, Red       ->
-		debug "case 5+6";(* case 5 + 6 *)
+		if debug_set then debug "case 5+6";(* case 5 + 6 *)
 		let pc = p.c in
 		  (* change sl color *)
 		  p.r.l.c <- Black;
@@ -408,34 +410,34 @@ struct
 	     * 
 	     *)
 	    | _, Black, Black, Red, _       ->
-		debug "case 6";(* case 6 *)
+		if debug_set then debug "case 6";(* case 6 *)
 		let pc = p.c in
 		  rotate_left p;
 		  p.r.c <- Black;
 		  p.l.c <- Black;
 		  p.c   <- pc;
 		  false
-	    | _                                 -> debug "case else"; false
+	    | _                                 -> if debug_set then debug "case else"; false
 
 	in
 	if not c then false else (
-	  debug "testing";
+	  if debug_set then debug "testing";
 	  match p.v with 
 	      EmptyContent -> c
 	    | _            -> 
 	  (* sibling color *)
 		match p.r.c, p.r.v with
-		    Red, Content _ -> debug "case 2"; rotate_left p; p.l.c <- Red; p.c <- Black;check_remove_l p (check3456 p.l)
+		    Red, Content _ -> if debug_set then debug "case 2"; rotate_left p; p.l.c <- Red; p.c <- Black;check_remove_l p (check3456 p.l)
 		  | _              -> check3456 p
 	)
       (* same as above, for symmetrical cases : n on the right side *)
       and check_remove_r p c = 
-	let debug x = let v = match p.v with Content v -> string_of_value v | _ -> "" in  debug ("check_remove_r: "^x^" - "^v) 
+	let debug x = (* let v = match p.v with Content v -> string_of_value v | _ -> "" in  debug ("check_remove_r: "^x^" - "^v) *) ()
 	in 
 	let check3456 p = 
 	  match p.c, p.r.c, p.l.c, p.l.l.c, p.l.r.c with
 	      Black, Black, Black, Black, Black ->
-		debug "case 3";(* case 3 *)
+		if debug_set then debug "case 3";(* case 3 *)
 		p.l.c <- Red;
 		true
 	    | Red, Black, Black, Black, Black  -> 
@@ -453,7 +455,7 @@ struct
 	     *                    [sl] srl
 	     *)
 	    | _, Black, Black, Black, Red ->
-		 debug "case 5+6";(* case 5 + 6 *)
+		 if debug_set then debug "case 5+6";(* case 5 + 6 *)
 		let pc = p.c in
 		  p.l.r.c <- Black;
 		  rotate_left p.l;
@@ -470,7 +472,7 @@ struct
 	     *                      
 	     *)
 	    | _, Black, Black, Red, _ ->
-		 debug "case 6";(* case 6 *)
+		 if debug_set then debug "case 6";(* case 6 *)
 		let pc = p.c in
 		  rotate_right p;
 		  p.l.c <- Black;
@@ -481,12 +483,12 @@ struct
 
       in
 	if not c then false else ( 
-	  debug "testing";
+	  if debug_set then debug "testing";
 	  match p.v with 
 	      EmptyContent -> c
 	    | _            -> 
 		match p.l.c, p.l.v with
-		    Red, Content _ -> debug "case 2"; rotate_right p; p.r.c <- Red; p.c <- Black; check_remove_r p (check3456 p.r)
+		    Red, Content _ -> if debug_set then debug "case 2"; rotate_right p; p.r.c <- Red; p.c <- Black; check_remove_r p (check3456 p.r)
 		  | _              -> check3456 p
 	)
 
@@ -501,15 +503,16 @@ struct
       in
       (* look for the left most child, and swap value *)
       let rec swap_remove_l node v =
+	let debug l = (* debug (String.concat "swap_remove_l:" l) *) () in
 	match node.v, node.l.v, node.r.v with
 	    Content y, EmptyContent, EmptyContent ->
-	      debug ("swap_remove_l: found "^(string_of_value y));
+	      if debug_set then debug (["found ";(string_of_value y)]);
  	      node.r, y, (node.c = Black)
 	  | Content y, EmptyContent, _            -> (* we found the target, let's swap *)
-	      debug ("swap_remove_l: found "^(string_of_value y));
+	      if debug_set then debug (["found ";(string_of_value y)]); 
  	      node.r, y, (check_color node node.r)
 	  | _                                     -> (* dig down a bit more, and check the result *)
-	      debug ("swap_remove_l: following "^(string_of_value (get_content node)));
+	      if debug_set then debug (["following ";(string_of_value (get_content node))]);
 	      let nl, rv , check = swap_remove_l node.l v 
 	      in 
 		node.l <- nl; 
@@ -519,15 +522,16 @@ struct
 		  
       (* look for the right most child, and swap value *)
       and swap_remove_r node v =
+	let debug l = (* debug (String.concat "swap_remove_r:" l) *) () in
 	match node.v, node.r.v, node.l.v with
 	    Content y, EmptyContent, EmptyContent -> (* we found the target, let's swap *)
-	      debug ("swap_remove_r: found leaf "^(string_of_value y));
+	      if debug_set then debug (["found leaf ";(string_of_value y)]);
  	      node.l, y, (node.c = Black)
 	  | Content y, EmptyContent, _            -> (* we found the target, let's swap *)
-	      debug ("swap_remove_r: found "^(string_of_value y));
+	      if debug_set then debug (["swap_remove_r: found ";(string_of_value y)]);
  	      node.l, y, (check_color node node.l)
 	  | _                                     -> (* dig down a bit more, and check the result *)
-	      debug ("swap_remove_r: following "^(string_of_value (get_content node)));
+	      debug (["swap_remove_r: following ";(string_of_value (get_content node))]);
 	      let nr, rv, check = swap_remove_r node.r v 
 	      in 
 		node.r <- nr;
@@ -538,10 +542,11 @@ struct
 		  
       (* look for the node to be deleted *)
       and remove_ node v =
+	let debug l = (* debug (String.concat "remove:" l) *) () in
 	match node.v with
 	    EmptyContent                  -> raise Not_found
 	  | Content nv                    -> 
-	      debug ("remove: compare "^(O.string_of_key v)^" "^(string_of_value nv));
+	      if debug_set then debug (["compare ";(O.string_of_key v)^" "^(string_of_value nv)]);
 	      match compare_k_v v nv with
 		  Below ->
 		    let nl, check, rv = remove_ node.l v in
