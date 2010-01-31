@@ -1,0 +1,9 @@
+# Tag things that are linked with external libraries
+<main.{byte,native}>: use_bigarray, use_unix
+
+# Tag also sources that use these libraries.
+# This will add -I +sdl.
+# You can specify something more precise than **/*.ml
+<**/*.ml>: use_unix
+<test_suite.*>: use_oUnit, use_unix
+
