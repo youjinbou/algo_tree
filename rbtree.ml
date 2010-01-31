@@ -404,23 +404,23 @@ struct
 	  | Node(nc,   Content nv, l, r) -> 
 	      debug ("remove: compare "^(O.string_of_key v)^" "^(string_of_value nv));
 	      match compare_k_v v nv with
-		  Below -> Node(nc, Content nv, remove_ l v, r)
-		| Above -> Node(nc, Content nv, l, remove_ r v)
+		  Below -> let n, rv = remove_ l v in Node(nc, Content nv, n, r), rv
+		| Above -> let n, rv = remove_ r v in Node(nc, Content nv, l, n), rv
 		| Equal -> 
 		    match l, r with 
-			Node(_, EmptyContent, _, _), Node(_, EmptyContent,_,_) -> l (* node has no child *)
-		      | Node(_, EmptyContent, _, _), Node(_, _, rl, _)         ->   (* leftmost of right child for replacement *)
+			Node(_, EmptyContent, _, _), Node(_, EmptyContent,_,_) -> l, nv (* node has no child *)
+		      | Node(_, EmptyContent, _, _), Node(_, _, rl, _)         ->       (* leftmost of right child for replacement *)
 			  let nr, rv, check = swap_remove_l r v
 			  in 
 			  let nnr, _ = check_remove_l nr check
-			  in Node(nc, Content rv, l, nnr)
-		      | Node( _, _, _, lr), Node( _, _, _, _)                  ->   (* rightmost of left child for replacement *)
+			  in Node(nc, Content rv, l, nnr), nv
+		      | Node( _, _, _, lr), Node( _, _, _, _)                  ->       (* rightmost of left child for replacement *)
 			  let nl, rv, check = swap_remove_r l v
 			  in 
 			  let nnl, _ = check_remove_r nl check
-			  in Node(nc, Content rv, nnl, r)
-      in remove_ tree k
-
+			  in Node(nc, Content rv, nnl, r), nv
+      in remove_ tree k 
+	
   end
 	 
 end
