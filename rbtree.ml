@@ -293,20 +293,21 @@ struct
 	 algorithm.
       *)
       let check_remove_l p c = 
+	let debug x = debug ("check_remove_l: "^x) in
 	if not c then p, false else 
 	let np =
 	  match p with 
 	      Node(Black, pv, (Node( Black,_,_,_) as n), Node(Red,sv,(Node(Black,_,_,_) as sl),(Node(Black,_,_,_) as sr))) -> 
-		debug "check_remove_l: case 2";(* case 2 *)
+		debug "case 2";(* case 2 *)
 		Node(Black, sv, Node(Red, pv, n, sl), sr)
 	    | _  -> p
 	in
 	  match np with
 	      Node(Black, pv, (Node( Black,_,_,_) as n), Node(Black,Content sv,(Node(Black,_,_,_) as sl),(Node(Black,_,_,_) as sr))) ->
-		debug "check_remove_l: case 3";(* case 3 *)
+		debug "case 3";(* case 3 *)
 		Node(Black, pv, n, Node(Red, Content sv, sl, sr)), true
 	    | Node(Red, pv, (Node( Black,_,_,_) as n), Node(Black,Content sv,(Node(Black,_,_,_) as sl),(Node(Black,_,_,_) as sr))) -> 
-		debug "check_remove_l: case 4";(* case 4 *)
+		debug "case 4";(* case 4 *)
 		Node(Black, pv, n, Node(Red, Content sv, sl, sr)), false
 		  
 	    (*
@@ -319,30 +320,31 @@ struct
 	     *                              slr [sr]
 	     *)
 	    | Node( pc, pv, n, Node(Black,sv,Node(Red,slv,sll,slr),(Node(Black,_,_,_) as sr))) -> 
-		debug "check_remove_r: case 5+6";(* case 5 + 6 *)
+		debug "case 5+6";(* case 5 + 6 *)
 		Node(pc,slv, Node (Black, pv, n, sll), Node(Black, sv, slr, sr)), false
 	    | Node( pc, pv, n, Node(Black,sv,sl,(Node(Red,_,_,_) as sr))) -> 
-		debug "check_remove_r: case 6";(* case 6 *)
+		debug "case 6";(* case 6 *)
 		Node( pc, sv, Node(Black, pv, n, sl), sr), false
 	    | _                                                            -> p, false
 
 
       (* same as above, for symmetrical cases : n on the right side *)
       and check_remove_r p c = 
+	let debug x = debug ("check_remove_r: "^x) in
 	if not c then p, false else 
 	let np =
 	  match p with 
 	      Node(Black, pv, Node(Red,sv,(Node(Black,_,_,_) as sl),(Node(Black,_,_,_) as sr)), (Node( Black,_,_,_) as n)) -> 
-		debug "check_remove_r: case 2";(* case 2 *)
+		debug "case 2";(* case 2 *)
 		Node(Black, sv, sl, Node(Red, pv, sr, n))
 	    | _  -> p
 	in
 	  match np with
 	      Node(Black, pv, Node(Black,Content sv,(Node(Black,_,_,_) as sl),(Node(Black,_,_,_) as sr)), (Node( Black,_,_,_) as n)) ->
-		debug "check_remove_r: case 3";(* case 3 *)
+		debug "case 3";(* case 3 *)
 		Node(Black, pv, Node(Red, Content sv, sl, sr), n), true
 	    | Node(Red, pv, Node(Black,Content sv,(Node(Black,_,_,_) as sl),(Node(Black,_,_,_) as sr)), (Node( Black,_,_,_) as n)) -> 
-		debug "check_remove_r: case 4";(* case 4 *)
+		debug "case 4";(* case 4 *)
 		Node(Black, pv, Node(Red, Content sv, sl, sr), n), false
 		  
 	    (*
@@ -355,10 +357,10 @@ struct
 	     *                    [sl] srl
 	     *)
 	    | Node( pc, pv, Node(Black,sv,(Node(Black,_,_,_) as sl),Node(Red,srv,srl,srr)), n) -> 
-		debug "check_remove_r: case 5+6";(* case 5 + 6 *)
+		debug "case 5+6";(* case 5 + 6 *)
 		Node(pc,srv, Node(Black, sv, sl, srl), Node (Black, pv, srr, n)), false
 	    | Node( pc, pv, Node(Black,Content sv,(Node(Red,_,_,_) as sl), sr), n) -> 
-		debug "check_remove_r: case 6";(* case 6 *)
+		debug "case 6";(* case 6 *)
 		Node( pc, Content sv, sl, Node(Black, pv, sr, n)), false
 
 	    | _                                                            -> p, false
@@ -366,15 +368,16 @@ struct
 	(* look for the target node to apply a swap and once done, 
 	   apply one or more times a balance check *)
       let rec swap_remove_l node v =
+	let debug x = debug ("swap_remove_l: "^x) in
 	match node with
 	    Node(x, Content y, (Node(_, EmptyContent, _, _) as z), Node(_, EmptyContent, _, _)) -> (* we found the target, and it's a leaf, just discard it *)
-	      debug ("swap_remove_l: found leaf "^(string_of_value y));
+	      debug ("found leaf "^(string_of_value y));
 	      z, y, true
 	  | Node(x, Content y, Node(_, EmptyContent, _, _), z) -> (* we found the target, let's swap *)
-	      debug ("swap_remove_l: found "^(string_of_value y));
+	      debug ("found "^(string_of_value y));
  	      z, y, true
 	  | Node(x, Content y, l, z)                                   -> (* dig down a bit more, and check the result *)
-	      debug ("swap_remove_l: following "^(string_of_value y));
+	      debug ("following "^(string_of_value y));
 	      let nl, rv, check = swap_remove_l l v 
 	      in 
 	      let nnl, check = check_remove_l nl check 
@@ -382,15 +385,16 @@ struct
 	  | Node(_, EmptyContent, _, _) -> raise Not_found (* this to remove a compiler warning *)
 
       and swap_remove_r node v =
+	let debug x = debug ("swap_remove_r: "^x) in
 	match node with
 	    Node(x, Content y, (Node(_, EmptyContent, _, _) as z), Node(_, EmptyContent, _, _)) -> (* we found the target, and it's a leaf, just discard it *)
-	      debug ("swap_remove_r: found leaf "^(string_of_value y));
+	      debug ("found leaf "^(string_of_value y));
 	      z, y, true
 	  | Node(x, Content y, z, Node(_, EmptyContent, _, _)) -> (* we found the target, let's swap *)
-	      debug ("swap_remove_r: found "^(string_of_value y));
+	      debug ("found "^(string_of_value y));
 	      z, y, true
 	  | Node(x, Content y, z, r)                                   -> (* dig down a bit more, and check the result *)
-	      debug ("swap_remove_r: following "^(string_of_value y));
+	      debug ("following "^(string_of_value y));
 	      let nr, rv, check = swap_remove_r r v 
 	      in 
 	      let nnr,check = check_remove_r nr check
@@ -399,10 +403,11 @@ struct
 		    
       (* look for the node to be deleted *)
       and remove_ node v =
+	let debug x = debug ("remove_: "^x) in
 	match node with
 	    Node(_ , EmptyContent, _, _) -> raise Not_found
 	  | Node(nc,   Content nv, l, r) -> 
-	      debug ("remove: compare "^(O.string_of_key v)^" "^(string_of_value nv));
+	      debug ("compare "^(O.string_of_key v)^" "^(string_of_value nv));
 	      match compare_k_v v nv with
 		  Below -> let n, rv = remove_ l v in Node(nc, Content nv, n, r), rv
 		| Above -> let n, rv = remove_ r v in Node(nc, Content nv, l, n), rv

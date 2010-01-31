@@ -544,30 +544,30 @@ struct
 	      debug ("remove: compare "^(O.string_of_key v)^" "^(string_of_value nv));
 	      match compare_k_v v nv with
 		  Below ->
-		    let nl, check = remove_ node.l v in
-		      node.l <- nl; node, check_remove_l node check
+		    let nl, check, rv = remove_ node.l v in
+		      node.l <- nl; node, check_remove_l node check, rv
 		| Above ->
-		    let nr, check = remove_ node.r v in
-		      node.r <- nr; node, check_remove_r node check
+		    let nr, check, rv = remove_ node.r v in
+		      node.r <- nr; node, check_remove_r node check, rv
 		| Equal ->
 		    match node.l.v, node.r.v with 
-			EmptyContent, EmptyContent -> empty_leaf, (node.c = Black) (* node has no child *)
+			EmptyContent, EmptyContent -> empty_leaf, (node.c = Black), nv (* node has no child *)
 		      | EmptyContent, _            ->                              (* leftmost of right child for replacement *)
 			  let nr, rv, check = swap_remove_l node.r v 
 			  in 
 			    node.v <- Content rv; 
 			    node.r <- nr; 
-			    node, check_remove_r node check
+			    node, check_remove_r node check, nv
 		      | _                          ->                              (* rightmost of left child for replacement *)
 			  let nl, rv, check = swap_remove_r node.l v
 			  in 
 			    node.v <- Content rv; 
 			    node.l <- nl;
-			    node, check_remove_l node check
+			    node, check_remove_l node check, nv
 
       in 
-      let n, _ = remove_ tree.root k
-      in tree.root <- n
+      let n, _, rv = remove_ tree.root k
+      in tree.root <- n; rv
 
   end
 	 

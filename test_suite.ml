@@ -6,9 +6,10 @@ open Random
 
 let _ = Random.init 0
 
+let dump_data = false
 
 let min = 10
-let max = 1000
+let max = 10000
 
 let dotty_folder = "dots"
 
@@ -40,7 +41,7 @@ module IB = Btree.Make(BTC)
 
 let btree_test () = 
 
-  let dump t f d = IB.dump t f d 
+  let dump = if dump_data then (fun t f d -> IB.dump t f d) else (fun t f d -> ())
   in
   let lstart = 10
   and lend   = 100 
@@ -127,7 +128,7 @@ end
 module IRBf = Rbtree.Make(RBTCf)
 
 let rbtree_fun_test () = 
-  let dump t f d = IRBf.dump t f d 
+  let dump = if dump_data then (fun t f d ->IRBf.dump t f d) else (fun t f d -> ())
 
   in
   let lstart = min
@@ -168,7 +169,7 @@ let rbtree_fun_test () =
   and removev t i =
     if i = (size) then t else 
       let x = checkarray.(i) in
-      let t' = try
+      let t',_ = try
 	IRBf.remove t x
       with Not_found -> assert_failure ("failed to remove "^(string_of_int x))
       in
@@ -218,7 +219,7 @@ module IRBi = Rbtree_imp.Make(RBTCi)
 
 
 let rbtree_imp_test () = 
-  let dump t f d = (* IRBi.dump t f d *) ()
+  let dump = if dump_data then (fun t f d -> IRBi.dump t f d) else (fun t f d -> ())
 
   in
   let lstart = min
@@ -300,9 +301,9 @@ let rbtree_imp_test () =
 
 let tree_test_list =
   TestLabel ("[test int list]", TestList [
-	       TestLabel ("Btree", TestCase(fun _ -> btree_test ()));
-	       TestLabel ("Rbtree (functional)", TestCase(fun _ -> rbtree_fun_test ())); 
-	       TestLabel ("Rbtree (imperative)", TestCase(fun _ -> rbtree_imp_test ()))
+	      (* TestLabel ("Btree", TestCase(fun _ -> btree_test ())); *)
+	       TestLabel ("Rbtree (functional)", TestCase(fun _ -> rbtree_fun_test ()))(* ; 
+	      TestLabel ("Rbtree (imperative)", TestCase(fun _ -> rbtree_imp_test ())) *)
 	     ]
 	    )
 
