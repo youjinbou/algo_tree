@@ -1,13 +1,33 @@
-(* Red Black Tree implementation - functional style 
-   
+(* 
+
+  Red Black Tree implementation - functional style 
+
+  Copyright (C) 2010  Didier Cassirame
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+*)
+
+(*   
    the customary OrderedType module type describes 
    the datatype to be stored in the tree. In this instance
    the storage key should be accessible through the 
    application of the get_key function on the value to
    be stored. IOW, the key,value pair is bound and stored 
-   as one lump in the tree.
+   as one "lump" in the tree.
    This choice has been driven by the implementation needs of
-   the PHP array. This is bad, I know, but I don't want to store
+   another project of mine. This is bad, I know, but I don't want to store
    the key twice): I should probably factor out the key of the 
    pair, and use references instead.
    
