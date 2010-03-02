@@ -4,12 +4,38 @@ open Rbtree
 open Rbtree_imp
 open Random
 
-let _ = Random.init 23423
 
-let dump_data = true
+(* unit tests for binary trees implementations 
+   for each kind of tree we do the following:
+
+
+   - the tree is instancied as a (int, int) map
+   - A range of ints from 'min' to 'max' are then
+   mapped to themselves in the tree, in a random
+   order. 
+   - The same range is then seeked in a different random
+   order.
+   - The same range is then remove from the tree, again
+   with a different order.
+
+
+   Each tree implementation requires its own tests set
+
+   'dump_data' indicates if we dump a graphviz 
+   dot compatible representation of the tree
+   at certain steps of the tests.
+   
+   
+*)
+
+
+
+let _ = Random.init 233
+
+let dump_data = false
 
 let min = 10
-let max = 2000
+let max = 80000
 
 let dotty_folder = "dots"
 
@@ -28,16 +54,26 @@ let randomize_order a size =
 
 (* BTREE ----------------------------------- *)
 
-module BTC =
+module BTCeven =
 struct
   type key_t   = int
   type value_t = int
-  let compare (k1: int) (k2: int) = if k1 < k2 then -1 else if k1 > k2 then 1 else 0
-  let max = 4
+  let compare (k1: int) (k2: int) = k1 - k2
+  let max = 14
   let string_of_key = string_of_int
 end
  
-module IB = Btree.Make(BTC)
+module BTCodd  =
+struct
+  type key_t   = int
+  type value_t = int
+  let compare (k1: int) (k2: int) = k1 - k2
+  let max = 27
+  let string_of_key = string_of_int
+end
+
+
+module IB = Btree.Make(BTCeven)
 
 let btree_test () = 
 
@@ -53,15 +89,15 @@ let btree_test () =
   and counter = ref (lstart) in
   let f k v =
     (* check that k and v are equal *)
-    assert_equal ~msg:((string_of_int k)^" <> "^(string_of_int v)) k v;
+    assert_equal ~msg:("iter: key and value don't match -> "^(string_of_int k)^" <> "^(string_of_int v)) k v;
     (* check values are in order *)
-    assert_equal ~msg:((string_of_int !counter)^" <> "^(string_of_int v)) !counter v;
+    assert_equal ~msg:("iter: wrong order of values -> "^(string_of_int !counter)^" <> "^(string_of_int v)) !counter v;
     incr counter
 
   (* check that all elements in the array starting at index s are in the tree *)
   and checkcontent tree s =
     for i = s to (size-1) do 
-      let (x: BTC.key_t) =  checkarray.(i) in 
+      let (x: IB.key_t) =  checkarray.(i) in 
 	try 
 	  let y = IB.find tree x in
 	    assert_equal ~msg:("find item :"^(string_of_int i)) y x
@@ -70,7 +106,6 @@ let btree_test () =
       
   and tree = IB.create () 
   in
-    
     (* init check array *)
     for i = 0 to (size-1) do
       checkarray.(i) <- (i + lstart)
@@ -86,6 +121,7 @@ let btree_test () =
 	with e -> assert_failure ("failed to add "^(string_of_int x))
      done ;
 
+    IB.dump tree "complete_tree" dotty_folder;
     
     IB.iter tree f;
     (* check number of iterated entries *)
@@ -111,7 +147,7 @@ let btree_test () =
 	  (*
 	  checkcontent tree (i+1); 
 	  *)
-	  assert_raises ~msg:("item n°"^(string_of_int i)^":"^(string_of_int x))(Not_found) (fun () -> IB.find tree x)
+	  assert_raises ~msg:("item #"^(string_of_int i)^":"^(string_of_int x))(Not_found) (fun () -> IB.find tree x)
     done 
 
 (* RED BLACK TREE FUNCTIONAL --------------------------- *)
@@ -121,7 +157,7 @@ struct
   type key_t = int
   type 'a t = (key_t * 'a)
   let get_key x = fst x
-  let compare k1 k2 = if k1 < k2 then -1 else if k1 > k2 then 1 else 0
+  let compare k1 k2 = k1 - k2
   let string_of_key = string_of_int
 end
  
@@ -174,7 +210,7 @@ let rbtree_fun_test () =
       with Not_found -> assert_failure ("failed to remove "^(string_of_int x))
       in
 	dump t' ("remove_"^(string_of_int i)^"_"^(string_of_int x)) dotty_folder;
-	assert_raises ~msg:("found removed item n°"^(string_of_int i)^":"^(string_of_int x))(Not_found) (fun () -> ignore (IRBf.find t' x));
+	assert_raises ~msg:("found removed item #"^(string_of_int i)^":"^(string_of_int x))(Not_found) (fun () -> ignore (IRBf.find t' x));
  	removev t' (i+1)
 
   in
@@ -188,7 +224,7 @@ let rbtree_fun_test () =
     in
       IRBf.iter f t;
       (* check number of iterated entries *)
-      assert_equal ~msg:((string_of_int !counter)^" <> "^(string_of_int (lend))) !counter (lend);
+      assert_equal ~msg:("counter check: "^(string_of_int !counter)^" <> "^(string_of_int (lend))) !counter (lend);
 
 
       (try 
@@ -267,7 +303,7 @@ let rbtree_imp_test () =
 	      Not_found -> assert_failure ("failed to remove "^(string_of_int x))
 	    | IRBi.Inconsistency (a,b,c) -> assert_failure ("consistency check : error at node "^(string_of_int (fst a))^" with left="^(string_of_int b)^" and right="^(string_of_int c))
 	);
-	assert_raises ~msg:("found removed item n°"^(string_of_int i)^":"^(string_of_int x))(Not_found) (fun () -> ignore (IRBi.find t x));
+	assert_raises ~msg:("found removed item #"^(string_of_int i)^":"^(string_of_int x))(Not_found) (fun () -> ignore (IRBi.find t x));
  	removev t (i+1)
 
   in

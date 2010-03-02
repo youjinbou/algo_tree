@@ -1,7 +1,7 @@
 (*
-  A btree implementation
+  Btree implementation
 
-  Copyright (C) 2009  Didier Cassirame
+  Copyright (C) 2010  Didier Cassirame
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -23,14 +23,16 @@ struct
 
   open Array
 
-  let debug s = (* prerr_string s;prerr_newline *)()
+  let debug_ s = prerr_string s;prerr_newline ()
+
+  let debug s = ()
 
   module type BtreeConf = 
   sig
     type key_t
     type value_t
-    val compare : key_t -> key_t -> int
-    val max     : int 
+    val compare       : key_t -> key_t -> int
+    val max           : int 
     val string_of_key : key_t -> string
   end
 
@@ -41,14 +43,22 @@ struct
     exception Compare_error
     exception Duplicate
 
+    type key_t   = O.key_t
+    type value_t = O.value_t
+
+
     (* some constants *)
-    let a_min = O.max / 2
-    let a_max = O.max
-    
+    let a_min   = (O.max / 2)                 (* minimum number of used cells *)
+    let a_max   = O.max                       (* maximum number of used cells *)
+    let a_med   = a_min + (O.max mod 2)       (* median index *)
+
+    let dicho_threshold = 9                   (* btree of median above this value will use dichotomic search -
+						 the gain is marginal for values below  
+					      *)
 
     type cell_t = 
 	EmptyCell 
-      | Cell of (O.key_t * O.value_t)       
+      | Cell of (key_t * value_t)       
 
     and  node_t = 
 	EmptyNode
@@ -61,7 +71,7 @@ struct
 
     let create_interval_array () = Array.make (a_max+2) EmptyNode
 		      
-    let create_empty_leaf () = 
+    let create_empty_leaf ()     = 
       let a = create_cell_array () in
 	Leaf (a) 
 
@@ -78,7 +88,6 @@ struct
     let is_full a = a.(a_max)<>EmptyCell
 
     let is_underflow a = (a.(a_min-1)=EmptyCell)
-
 
     let get_key x = match x with
 	EmptyCell  -> ""
@@ -104,7 +113,7 @@ struct
     (* shift left of count elements the array a *)
     let shift_l count a  = 
       try (
-      blit a (count) a 0 ((Array.length a) - count)
+	blit a (count) a 0 ((Array.length a) - count)
       ) with Invalid_argument x -> raise (Invalid_argument ("shift_l:"^x))
 
 
@@ -112,12 +121,12 @@ struct
     (* fill the last n entries in array a with value *)
     let fill_end value a n =
       let l = Array.length a in
-      fill a (l-n) n value
-
+	fill a (l-n) n value
+	  
     let clear_cells = fill_end EmptyCell
-
+      
     let clear_nodes = fill_end EmptyNode
-
+      
     let shift_right a i = 
       try (
 	blit a i a (i+1) ((Array.length a) - i - 1)
@@ -126,17 +135,18 @@ struct
     (* [ 1 2 3 4 5 6 ] -> [ 1 3 4 5 6 _ ]  *)
     let shift_left  a i = 
       try (
-      blit a (i+1) a i ((Array.length a) - i - 1)
+	blit a (i+1) a i ((Array.length a) - i - 1)
       ) with Invalid_argument x -> raise (Invalid_argument ("shift_left:"^x))
     (* - iterators etc.... -- *)
 
 
     let fold_left f acc tree =
       let rec fold_node f acc node =
+	let racc = ref acc in
 	match node with
 	    EmptyNode  -> ()
-	  | Node (s,a) -> for i=0 to a_max do fold_node f acc s.(i); fold_cell f acc a.(i) done; fold_node f acc s.(a_max+1)
-	  | Leaf (a)   -> for i=0 to a_max do fold_cell f acc a.(i) done
+	  | Node (s,a) -> for i=0 to a_max do racc := fold_cell f (fold_node f (!racc) s.(i)) a.(i) done; fold_node f (!racc) s.(a_max+1)
+	  | Leaf (a)   -> for i=0 to a_max do racc := fold_cell f !racc a.(i) done; !racc
 
       and fold_cell f acc cell =
 	match cell with
@@ -146,7 +156,7 @@ struct
       in fold_node f acc tree.root 
 
     let iter tree f =
-      let f' s = f 
+      let f' () = f 
       in fold_left f' () tree
 
 
@@ -206,64 +216,135 @@ struct
 
 
     (* -- find a value in tree -------------------- *)
+	  
+    (* a 0 b 1 c 2 d 3 e 4 f 5 g 6 h 7 i *)
 
-    let find tree k =
-      let debug x = () in
-      let rec find_node node k =
-	match node with 
-	    EmptyNode   -> raise Not_found
-	  | Leaf (a)    -> find_leaf_r a k 0
-	  | Node (s,a)  -> find_node_r a s k 0
+    let find =
+      let find_dicho tree k =
+	let dicho i = if i = 1 then 0 else (i lsr 1) + (i mod 2) in
+	let rec find_node node k =
+	  match node with
+	      EmptyNode   -> raise Not_found
+	    | Leaf (a)    -> find_leaf_r a k (a_med) (a_med)
+	    | Node (s,a)  -> find_node_r a s k (a_med) (a_med)
+		
+	and find_leaf_r cells k i j = 
+	  debug ("find_leaf: checking "^(string_of_int i)^" "^(string_of_int j));
+	  let j' = dicho j in
+	    match cells.(i) with 
+		EmptyCell    -> if j=0 then raise Not_found else find_leaf_r cells k (i-j') (j')
+	      | Cell(ck,v)   ->
+		  debug ("key = "^(O.string_of_key ck));
+		  match compare k ck with
+		      Below -> if j=0 then raise Not_found else find_leaf_r cells k (i-j') (j')
+		    | Equal -> v
+		    | Above -> if j=0 then raise Not_found else find_leaf_r cells k (i+j') (j')
+			
+	and find_node_r cells s k i j =
+	  debug ("find_node: checking "^(string_of_int i)^" "^(string_of_int j));
+	  let j' = dicho j in
+	    match cells.(i) with 
+		EmptyCell       -> if j=0 then find_node s.(i) k else find_node_r cells s k (i-j') (j')
+	      | Cell(ck, v)     -> 
+		  debug ("key = "^(O.string_of_key ck));
+		  match compare k ck with
+		      Below -> if j=0 then find_node s.(i) k else find_node_r cells s k (i-j') (j')
+		    | Equal -> v
+		    | Above -> if j=0 then find_node s.(i+1) k else find_node_r cells s k (i+j') (j')
+		    
+	in 
+	  debug ("searching: "^(O.string_of_key k));
+	  find_node tree.root k
 
-      and find_leaf_r cells k i = 
-	match cells.(i) with 
-	    EmptyCell    -> raise Not_found
-	  | Cell(ck,v)   ->
-	      match compare k ck with
-		  Below -> raise Not_found
-		| Equal -> v
-		| Above -> find_leaf_r cells k (i+1)
-		  
-      and find_node_r cells s k i =
-	if i = a_max 
-	then 
-	  find_node s.(i) k 
-	else 
+      and find_linear tree k =
+	let rec find_node node k =
+	  match node with 
+	      EmptyNode   -> raise Not_found
+	    | Leaf (a)    -> find_leaf_r a k 0
+	    | Node (s,a)  -> find_node_r a s k 0
+		
+	and find_leaf_r cells k i = 
 	  match cells.(i) with 
-	      EmptyCell       -> find_node s.(i) k
-	    | Cell(ck, v)     -> match compare k ck with
-		  Below -> find_node s.(i) k
-		| Equal -> v
-		| Above -> find_node_r cells s k (i+1)
-	     
-      in 
-	find_node tree.root k
+	      EmptyCell    -> raise Not_found
+	    | Cell(ck,v)   ->
+		match compare k ck with
+		    Below -> raise Not_found
+		  | Equal -> v
+		  | Above -> find_leaf_r cells k (i+1)
+		      
+	and find_node_r cells s k i =
+	  if i = a_max 
+	  then 
+	    find_node s.(i) k 
+	  else 
+	    match cells.(i) with 
+		EmptyCell       -> find_node s.(i) k
+	      | Cell(ck, v)     -> match compare k ck with
+		    Below -> find_node s.(i) k
+		  | Equal -> v
+		  | Above -> find_node_r cells s k (i+1)
+		      
+	in 
+	  find_node tree.root k
+
+    in if a_med > dicho_threshold 
+      then find_dicho 
+      else find_linear
+
 
     (* -- add a value in tree -------------------- *)
 
     let add tree k v =
 
+
       (* [ 1 2 3 4 5 ] -> [ 1 2 ] [3] [ 4 5 ] *)
-      let split_leaf a =
-	let na = create_cell_array () 
-	and median = a.(a_min)
-	in 
-	  blit a (a_min+1) na 0 a_min;
-	  fill a (a_min) (a_min+1) EmptyCell;
-	  Some(median,Leaf(na))
+      let split_leaf =
+	let split_leaf_even a =
+	  let na = create_cell_array () 
+	  and median = a.(a_min)
+	  in 
+	    blit a (a_min+1) na 0 a_min;
+	    fill a (a_min) (a_min+1) EmptyCell;
+	    Some(median,Leaf(na))
+	and split_leaf_odd a =
+	  let na = create_cell_array () 
+	  and median = a.(a_med)
+	  in 
+	    blit a (a_med+1) na 0 a_min;
+	    fill a (a_med) (a_min+1) EmptyCell;
+	    Some(median,Leaf(na))
+	in
+	  if (a_max mod 2) = 0
+	  then split_leaf_even
+	  else split_leaf_odd
 
 	    
       (* [ a 1 b 2 c 3 d 4 e 5 f ] -> [a 1 b 2 c ] [3] [ d 4 e 5 f ] *)
-      and split_node s a = 
-	let na = create_cell_array ()
-	and ns = create_interval_array ()
-	and median = a.(a_min)                    (* the median value of the full node      *)
-	in 
-	  blit a (a_min+1) na 0 a_min;            (* copy the second half of the cells      *)
-	  fill a (a_min) (a_min+1) EmptyCell;     (* erase them from the full node          *)
-	  blit s (a_min+1) ns 0 (a_min+1);        (* copy the second half of the nodes      *)
-	  fill s (a_min+1) (a_min+1) EmptyNode;   (* erase them from the full node          *)
-	  Some(median,Node(ns,na))                (* return the copy as a median + new node *)
+      and split_node =
+	let split_node_even s a = 
+	  let na = create_cell_array ()
+	  and ns = create_interval_array ()
+	  and median = a.(a_min)                    (* the median value of the full node      *)
+	  in 
+	    blit a (a_min+1) na 0 a_min;            (* copy the second half of the cells      *)
+	    fill a (a_min) (a_min+1) EmptyCell;     (* erase them from the full node          *)
+	    blit s (a_min+1) ns 0 (a_min+1);        (* copy the second half of the nodes      *)
+	    fill s (a_min+1) (a_min+1) EmptyNode;   (* erase them from the full node          *)
+	    Some(median,Node(ns,na))                (* return the copy as a median + new node *)
+	and split_node_odd s a =
+	  let na = create_cell_array ()
+	  and ns = create_interval_array ()
+	  and median = a.(a_med)                    (* the median value of the full node      *)
+	  in 
+	    blit a (a_med+1) na 0 a_min;            (* copy the second half of the cells      *)
+	    fill a (a_med) (a_med) EmptyCell;       (* erase them from the full node          *)
+	    blit s (a_med+1) ns 0 (a_med);          (* copy the second half of the nodes      *)
+	    fill s (a_med+1) (a_med) EmptyNode;     (* erase them from the full node          *)
+	    Some(median,Node(ns,na))                (* return the copy as a median + new node *)
+	     
+	in if (a_max mod 2) = 0 
+	  then split_node_even
+	  else split_node_odd
 	
       in
       let rec add_r node k v =
@@ -298,9 +379,9 @@ struct
 		    Above -> add_node_r s a k v (i+1)
 		  | Below -> check_bubble (add_r s.(i) k v)
 		  | Equal -> (a.(i) <- Cell(k,v)); None
-
+		      
 	in add_node_r s a k v 0
-
+	     
       in let check_root_bubble tree b =
 	  match b with
 	      None       -> ()
@@ -312,14 +393,13 @@ struct
 		c.(0) <- m; 
 		tree.root <- Node(i,c)
 	      )
-
+		   
       in match tree.root with
 	  EmptyNode  -> 
 	    let c = create_cell_array () 
 	    in c.(0) <- Cell(k,v)
 	| Leaf (a)   -> check_root_bubble tree (add_to_leaf a k v)
 	| Node (s,a) -> check_root_bubble tree (add_to_node s a k v) 
-
 
 
     (* -- remove a value in the tree ------------------- *)
@@ -361,7 +441,8 @@ struct
 	  cells.(i) <- cr.(count-1);             (* set new median *)
 	  shift_l count cr;                      (* shift cr to the left *)
 	  clear_cells cr (a_max-rsz+count)       (* clear cr end *)
-	) with Invalid_argument x -> raise (Invalid_argument ("rotate_cells_left:"^x))
+	) 
+	with Invalid_argument x -> raise (Invalid_argument ("rotate_cells_left:"^x))
 
       and rotate_nodes_left sl sr count =
 	try (
@@ -381,7 +462,6 @@ struct
       and rotate_cells_right cl cr cells i count =
 	try (
 	let lsz = size_cells cl 
-	and rsz = size_cells cr
 	in
 	  (* move cells 1st *)
 	  shift_r count cr;                      (* shift cr        *)
@@ -394,7 +474,6 @@ struct
       and rotate_nodes_right sl sr count =
 	try (
 	let lsz = size_nodes sl 
-	and rsz = size_nodes sr
 	in
 	  (* move intervals *)
 	  shift_r count sr;                      (* shift sr        *)
@@ -488,18 +567,17 @@ struct
 	match node with
 	    EmptyNode  -> invalid_arg "Btree.remove: no next value for in node removal"
 	  | Leaf (cells)   -> (
-	      let r = source.(i) in 
-		debug ("swap_of_leaf: replacing with "^(get_key (cells.(0))));
-		source.(i) <- cells.(0);              (* swap the cells *)
-		shift_left cells 0;                   (* remove the target cell *)
-		is_underflow cells
+	      debug ("swap_of_leaf: replacing with "^(get_key (cells.(0))));
+	      source.(i) <- cells.(0);              (* swap the cells *)
+	      shift_left cells 0;                   (* remove the target cell *)
+	      is_underflow cells
 	    )
  	  | Node (subs,cells) -> 
 	      if swap_and_remove source i subs.(0) then (check_underflow subs cells 0;is_underflow cells) else false
 
 
       in debug ("remove "^(O.string_of_key k));
-	remove_r tree.root k;
+	ignore (remove_r tree.root k);
 	match tree.root with
 	    EmptyNode  -> ()
 	  | Node (s,a) -> if size_cells a = 0 then tree.root <- s.(0) (* since all cells have been suppressed, the remaining is in the 1st subnode *)
