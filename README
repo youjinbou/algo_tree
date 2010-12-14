@@ -1,10 +1,9 @@
-
-This is a repository of different binary tree implementations in Ocaml.
-At the moment, only 2 kinds of binary trees are present: Red Black tree and B-tree.
+This is a repository of different tree structure implementations in Ocaml.
+At the moment, only 2 kinds of trees are present: Red Black tree and B-tree.
 The former has 2 implementations available: imperative and functional.
 The later is only implemented in imperative style (a functional implementation probably would not make sense).
 
 In all truth, it would be certainly safer to use the Ocaml provided Set or Map instead. Yet, I choose to provide 
-this code in the hope that someone would find it useful.
+this code in the hope that someone find it useful.
 
 This code is provided under the GPL licence.
