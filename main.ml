@@ -1,6 +1,4 @@
-open Btree
-open Rbtree
-open Rbtree_imp
+(* sample application conducting tests on the trees *)
 
 let max      = 1000000
 
@@ -35,6 +33,7 @@ module BTCf =
 struct
   type key_t = int
   type 'a t = (key_t * 'a)
+  let make k v : 'a t  = (k,v)
   let get_key x = fst x
   let compare k1 k2 = if k1 < k2 then -1 else if k1 > k2 then 1 else 0
   let string_of_key = string_of_int
@@ -77,13 +76,13 @@ let _ =
       done
 )
 | MRbtree_f -> (
-    let t = IBf.create ()
+    let t : int IBf.t = IBf.create ()
     in
     let rec addv t i = 
       if i = max then IBf.dump t "main_fun" "dots/"
       else 
 	let x = checkarray.(i-1) in
-	  addv (IBf.add t (x,x)) (i+1)
+	  addv (IBf.add t (BTCf.make x x)) (i+1)
     in addv t 1
 )
 | MRbtree_i -> (

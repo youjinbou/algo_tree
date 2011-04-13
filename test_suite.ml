@@ -1,11 +1,8 @@
 open OUnit
-open Btree
-open Rbtree
-open Rbtree_imp
 open Random
 
 
-(* unit tests for binary trees implementations 
+(* unit tests for the sorted tree implementations 
    for each kind of tree we do the following:
 
 
@@ -19,7 +16,7 @@ open Random
    with a different order.
 
 
-   Each tree implementation requires its own tests set
+   Each implementation requires its own set of tests
 
    'dump_data' indicates if we dump a graphviz 
    dot compatible representation of the tree
@@ -29,13 +26,12 @@ open Random
 *)
 
 
-
-let _ = Random.init 233
+let _ = Random.init (int_of_float (Unix.time ()))
 
 let dump_data = false
 
 let min = 10
-let max = 80000
+let max = 8000
 
 let dotty_folder = "dots"
 
@@ -157,6 +153,7 @@ struct
   type key_t = int
   type 'a t = (key_t * 'a)
   let get_key x = fst x
+  let make k v : 'a t  = (k,v)
   let compare k1 k2 = k1 - k2
   let string_of_key = string_of_int
 end
@@ -186,7 +183,7 @@ let rbtree_fun_test () =
     if i = (size) then t else 
       let x = checkarray.(i) in
       let t' = try
-	IRBf.add t (x, x)
+	IRBf.add t (RBTCf.make x x)
       with e -> assert_failure ("failed to add "^(string_of_int x))
       in
 	dump t' ("add_"^(string_of_int i)^"_"^(string_of_int x)) dotty_folder;
