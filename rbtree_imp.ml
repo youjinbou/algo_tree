@@ -48,6 +48,8 @@ sig
   val find       : t -> key_t -> cell_t
   val remove     : t -> key_t -> t
 
+  exception Inconsistency of key_t * int * int
+  val check      : t -> int
   val dump       : t -> string -> string -> unit
 
 end
@@ -205,7 +207,7 @@ struct
       
   (* -- consistency check function ------ *)
 
-  exception Inconsistency of O.t * int * int
+  exception Inconsistency of O.key_t * int * int
 
   let check tree =
 
@@ -222,7 +224,7 @@ struct
 	  and rc = check_ node.r nc
 	  in
 	  if lc <> rc 
-	  then raise (Inconsistency (v, lc, rc))
+	  then raise (Inconsistency (O.get_key v, lc, rc))
 	  else lc
 	    
     in check_ tree.root 0
