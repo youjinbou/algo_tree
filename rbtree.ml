@@ -27,7 +27,7 @@
      as one "lump" in the tree.
      This choice has been driven by the implementation needs of another 
      project  of  mine.  This is bad, I know, but I don't want to store
-     the  key  twice): I should probably factor out the key of the pair, 
+     the  key  twice. I should probably factor out the key of the pair, 
      and use references instead.
      
 *)

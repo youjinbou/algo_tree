@@ -49,6 +49,7 @@ sig
   val remove     : t -> key_t -> t
 
   exception Inconsistency of key_t * int * int
+
   val check      : t -> int
   val dump       : t -> string -> string -> unit
 

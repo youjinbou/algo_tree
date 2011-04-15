@@ -69,7 +69,7 @@ struct
 end
 
 
-module IB = Btree.Make(BTCeven)
+module IB = Btree.Mutable.Make(BTCeven)
 
 let btree_test () = 
 
@@ -298,7 +298,7 @@ let rbtree_imp_test () =
 	    dump t ("remove_"^(string_of_int i)^"_"^(string_of_int x)) dotty_folder
 	  with 
 	      Not_found -> assert_failure ("failed to remove "^(string_of_int x))
-	    | IRBi.Inconsistency (a,b,c) -> assert_failure ("consistency check : error at node "^(string_of_int (fst a))^" with left="^(string_of_int b)^" and right="^(string_of_int c))
+	    | IRBi.Inconsistency (a,b,c) -> assert_failure ("consistency check : error at node "^(string_of_int a)^" with left="^(string_of_int b)^" and right="^(string_of_int c))
 	);
 	assert_raises ~msg:("found removed item #"^(string_of_int i)^":"^(string_of_int x))(Not_found) (fun () -> ignore (IRBi.find t x));
  	removev t (i+1)
@@ -321,7 +321,7 @@ let rbtree_imp_test () =
       checkv t 0;
       (try 
 	 ignore (IRBi.check t)
-      with IRBi.Inconsistency (a,b,c) -> assert_failure ("consistency check : error at node "^(string_of_int (fst a))^" with left="^(string_of_int b)^" and right="^(string_of_int c)));
+      with IRBi.Inconsistency (a,b,c) -> assert_failure ("consistency check : error at node "^(string_of_int a)^" with left="^(string_of_int b)^" and right="^(string_of_int c)));
 	
       randomize_order checkarray size;
       ignore (removev t 0)
