@@ -1,6 +1,6 @@
 (* sample application conducting tests on the trees *)
 
-let max      = 1000000
+let max      = 10000
 
 type tree_kind_t = MBtree | MRbtree_f | MRbtree_i
 

@@ -17,7 +17,7 @@ rule() {
     clean)   ocb -clean;;
     native)  ocb $TARGET.native;;
     byte)    ocb $TARGET.byte;;
-    tests)   ocb test_suite.byte test_suite.native;;
+    tests)   ocb tests/test_suite.byte tests/test_suite.native;;
     profile) ocb $TARGET.p.native $TARGET.d.byte;;
     all)     ocb $TARGET.native $TARGET.byte;;
     depend) echo "Not needed.";;

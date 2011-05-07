@@ -19,17 +19,12 @@
 
 *)
 
-(*   
-     The customary OrderedType module type describes the datatype to be 
-     stored  in  the  tree. In this instance, the storage key should be 
-     accessible  through the application of the get_key function on the 
-     value  to  be  stored. IOW, the key,value pair is bound and stored 
-     as one "lump" in the tree.
-     This choice has been driven by the implementation needs of another 
-     project  of  mine.  This is bad, I know, but I don't want to store
-     the  key  twice. I should probably factor out the key of the pair, 
-     and use references instead.
-     
+(* 
+   The customary OrderedType module type describes the datatype stored  
+   in the tree. In this instance, the storage key should be accessible 
+   by applying the get_key function on the value to be stored. 
+   IOW, the <key,value>  pair is bound and stored as one "lump" in the 
+   tree.
 *)
 
 let debug x = (* prerr_string x; prerr_newline*) ()

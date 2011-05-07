@@ -5,5 +5,7 @@
 # This will add -I +sdl.
 # You can specify something more precise than **/*.ml
 <**/*.ml>: use_unix
-<test_suite.*>: use_oUnit, use_unix
+<src>: include
+<tests/*.ml>: use_oUnit, use_unix
+<tests/test_suite.*>: use_oUnit, use_unix
 
