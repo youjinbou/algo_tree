@@ -70,8 +70,8 @@ struct
   let set_cell a i c = a.(i) <- c
   let get_cell a i = a.(i)
 
-  let get_interval s i = s.(i)
-  let set_interval s i v = s.(i) <- v
+  let get_sub s i = s.(i)
+  let set_sub s i v = s.(i) <- v
     
 
   (* -- internal utils functions ---------------- *)
@@ -100,45 +100,6 @@ struct
   let compare k1 k2 = let c = O.compare k1 k2 in
 		      if c < 0 then Below else if c > 0 then Above else Equal
 
-
-  (* - array manipulation ----------------------- *)
-
-  (* shift right of count elements the array a in b *)
-  let shift_r count a b = 
-    try (
-      blit a 0 b (count) ((Array.length a) - count)
-    ) with Invalid_argument x -> raise (Invalid_argument ("shift_r:"^x))
-      
-  (* shift left of count elements the array a in b *)
-  let shift_l count a b = 
-    try (
-      blit a (count) b 0 ((Array.length a) - count)
-    ) with Invalid_argument x -> raise (Invalid_argument ("shift_l:"^x))
-
-
-  (* 3 [ 1 2 3 4 5 6 7 ] -> [ 1 2 3 4 _ _ _ ]  *)
-  (* fill the last n entries in array a with value *)
-  let fill_end value a n =
-    let l = Array.length a in
-    fill a (l-n) n value
-      
-  let clear_cells = fill_end EmptyCell
-    
-  let clear_nodes = fill_end EmptyNode
-    
-  (* shift 1 step on the right elements of a starting at position i (element i is duplicated) *)
-  let shift_right a i b c = 
-    try (
-      blit a i b (i+1) ((Array.length a) - i - 1);
-      a.(i) <- c
-    ) with Invalid_argument x -> raise (Invalid_argument ("shift_right:"^x))
-
-  (* shift 1 step on the left elements of a starting at position i+1 (we loose element i) *)
-  (* [ 1 2 3 4 5 6 ] -> [ 1 3 4 5 6 _ ]  *)
-  let shift_left  a i b = 
-    try (
-      blit a (i+1) b i ((Array.length a) - i - 1)
-    ) with Invalid_argument x -> raise (Invalid_argument ("shift_left:"^x))
 
 
   (* -- add node utils ------------------------- *)
@@ -201,15 +162,45 @@ struct
 
     (* - array manipulation -- *)
 
-    (* let's turn the default pure operators into mutator ones *)
-
-    let shift_r count a = shift_r count a a
-
-    let shift_l count a = shift_l count a a
+    (* shift right of count elements the array a in b *)
+    let shift_r count a = 
+      try (
+	blit a 0 a (count) ((Array.length a) - count)
+      ) with Invalid_argument x -> raise (Invalid_argument ("shift_r:"^x))
 	
-    let shift_right a i = shift_right a i a
+    (* shift left of count elements the array a in b *)
+    let shift_l count a = 
+      try (
+	blit a (count) a 0 ((Array.length a) - count)
+      ) with Invalid_argument x -> raise (Invalid_argument ("shift_l:"^x))
 
-    let shift_left  a i = shift_left a i a
+
+    (* 3 [ 1 2 3 4 5 6 7 ] -> [ 1 2 3 4 _ _ _ ]  *)
+    (* fill the last n entries in array a with value *)
+    let fill_end value a n =
+      let l = Array.length a in
+      fill a (l-n) n value
+	
+    let clear_cells = fill_end EmptyCell
+      
+    let clear_nodes = fill_end EmptyNode
+      
+    (* shift 1 step on the right elements of a starting at position i (element i is duplicated) *)
+    let shift_right a i c = 
+      try (
+	blit a 0 a 0 i;
+	blit a i a (i+1) ((Array.length a) - i - 1);
+	a.(i) <- c
+      ) with Invalid_argument x -> raise (Invalid_argument ("shift_right:"^x))
+
+    (* shift 1 step on the left elements of a starting at position i+1 (we loose element i) *)
+    (* [ 1 2 3 4 5 6 ] -> [ 1 3 4 5 6 _ ]  *)
+    let shift_left  a i = 
+      try (
+	blit a 0 a 0 (pred i);
+	blit a (i+1) a i ((Array.length a) - i - 1)
+      ) with Invalid_argument x -> raise (Invalid_argument ("shift_left:"^x))
+
 
     (* - iterators etc.... -------------------------- *)
 
@@ -220,9 +211,9 @@ struct
 	    EmptyNode  -> acc
 	  | Node (s,a) -> 
 	    for i=0 to a_max do 
-	      racc := fold_cell f (fold_node f (!racc) (get_interval s i)) (get_cell a i)
+	      racc := fold_cell f (fold_node f (!racc) (get_sub s i)) (get_cell a i)
 	    done; 
-	    fold_node f (!racc) (get_interval s (a_max+1))
+	    fold_node f (!racc) (get_sub s (a_max+1))
 	  | Leaf (a)   -> 
 	    for i=0 to a_max do 
 	      racc := fold_cell f !racc (get_cell a i) 
@@ -330,13 +321,13 @@ struct
 	  debug ("find_node: checking "^(string_of_int i)^" "^(string_of_int j));
 	  let j' = dicho j in
 	  match get_cell cells i with 
-	      EmptyCell       -> if j=0 then find_node (get_interval s i) k else find_node_r cells s k (i-j') (j')
+	      EmptyCell       -> if j=0 then find_node (get_sub s i) k else find_node_r cells s k (i-j') (j')
 	    | Cell(ck, v)     -> 
 	      debug ("key = "^(O.string_of_key ck));
 	      match compare k ck with
-		  Below -> if j=0 then find_node (get_interval s i) k else find_node_r cells s k (i-j') (j')
+		  Below -> if j=0 then find_node (get_sub s i) k else find_node_r cells s k (i-j') (j')
 		| Equal -> v
-		| Above -> if j=0 then find_node (get_interval s (i+1)) k else find_node_r cells s k (i+j') (j')
+		| Above -> if j=0 then find_node (get_sub s (i+1)) k else find_node_r cells s k (i+j') (j')
 		    
 	in 
 	debug ("searching: "^(O.string_of_key k));
@@ -361,12 +352,12 @@ struct
 	and find_node_r cells s k i =
 	  if i = a_max 
 	  then 
-	    find_node (get_interval s i) k 
+	    find_node (get_sub s i) k 
 	  else 
 	    match get_cell cells i with 
-		EmptyCell       -> find_node (get_interval s i) k
+		EmptyCell       -> find_node (get_sub s i) k
 	      | Cell(ck, v)     -> match compare k ck with
-		  Below -> find_node (get_interval s i) k
+		  Below -> find_node (get_sub s i) k
 		  | Equal -> v
 		  | Above -> find_node_r cells s k (i+1)
 		    
@@ -457,11 +448,11 @@ struct
 	      )
 	  in
 	  match get_cell a i with 
-	      EmptyCell   -> check_bubble (add_r (get_interval s i) k v)
+	      EmptyCell   -> check_bubble (add_r (get_sub s i) k v)
 	    | Cell(ck,cv) -> (
 	      match compare k ck with
 		  Above -> add_node_r s a k v (i+1)
-		| Below -> check_bubble (add_r (get_interval s i) k v)
+		| Below -> check_bubble (add_r (get_sub s i) k v)
 		| Equal -> set_cell a i (Cell(k,v)); None
 	    )
 	in add_node_r s a k v 0
@@ -473,8 +464,8 @@ struct
 	       let c = create_cell_array () 
 	       and i = create_interval_array () 
 	       in ignore ( 
-		 set_interval i 0 tree.root;
-		 set_interval i 1 n; 
+		 set_sub i 0 tree.root;
+		 set_sub i 1 n; 
 		 set_cell c 0 m; 
 		 tree.root <- Node(i,c)
 	       )
@@ -569,7 +560,7 @@ struct
       let check_underflow subs cells i =
 	try (
 	  let rec check_u_r subs cells i =
-	    match get_interval subs i, get_interval subs (i+1) with
+	    match get_sub subs i, get_sub subs (i+1) with
 		Node(il, cl), Node(ir, cr) -> (
 		  let l = size_cells cl 
 		  and r = size_cells cr
@@ -638,14 +629,14 @@ struct
       and remove_of_node cells subs k i =
 	if (
 	  match get_cell cells i with
-	      EmptyCell      -> remove_r (get_interval subs i) k
+	      EmptyCell      -> remove_r (get_sub subs i) k
 	    | Cell(ck,cv)    -> 
 	      match compare k ck with 
 		  Above -> remove_of_node cells subs k (i+1)                  (* loop to next cell *)
- 		| Equal -> (swap_and_remove cells i (get_interval subs (i+1)));              
+ 		| Equal -> (swap_and_remove cells i (get_sub subs (i+1)));              
 		(* we are removing a cell from a node
 		   => swap with the next leaf cell and proceed from there *)
-		| Below -> remove_r (get_interval subs i) k 
+		| Below -> remove_r (get_sub subs i) k 
 	)
 	then 
 	  (check_underflow subs cells i; is_underflow cells)
@@ -661,7 +652,7 @@ struct
 	    is_underflow cells
 	  )
  	  | Node (subs,cells) -> 
-	    if swap_and_remove source i (get_interval subs 0) 
+	    if swap_and_remove source i (get_sub subs 0) 
 	    then (check_underflow subs cells 0;is_underflow cells) 
 	    else false
 
@@ -670,14 +661,13 @@ struct
       ignore (remove_r tree.root k);
       match tree.root with
 	  EmptyNode  -> ()
-	| Node (s,a) -> if size_cells a = 0 then tree.root <- (get_interval s 0) 
+	| Node (s,a) -> if size_cells a = 0 then tree.root <- (get_sub s 0) 
 	(* since all cells have been suppressed, the remaining is in the 1st subnode *)
 	| Leaf (a)   -> ()
 
   end (* Make *)
 
 end
-
 
 (*
 module Pure =
@@ -707,6 +697,48 @@ struct
   struct
 
     include Common(O)
+
+
+    (* - array manipulation ----------------------- *)
+
+    (* shift right of count elements the array a in b *)
+    let shift_r count a b = 
+      try (
+	blit a 0 b (count) ((Array.length a) - count)
+      ) with Invalid_argument x -> raise (Invalid_argument ("shift_r:"^x))
+	
+    (* shift left of count elements the array a in b *)
+    let shift_l count a b = 
+      try (
+	blit a (count) b 0 ((Array.length a) - count)
+      ) with Invalid_argument x -> raise (Invalid_argument ("shift_l:"^x))
+
+
+    (* 3 [ 1 2 3 4 5 6 7 ] -> [ 1 2 3 4 _ _ _ ]  *)
+    (* fill the last n entries in array a with value *)
+    let fill_end value a n =
+      let l = Array.length a in
+      fill a (l-n) n value
+	
+    let clear_cells = fill_end EmptyCell
+      
+    let clear_nodes = fill_end EmptyNode
+      
+    (* shift 1 step on the right elements of a starting at position i (element i is duplicated) *)
+    let shift_right a i b c = 
+      try (
+	blit a 0 b 0 i;
+	blit a i b (i+1) ((Array.length a) - i - 1);
+	b.(i) <- c
+      ) with Invalid_argument x -> raise (Invalid_argument ("shift_right:"^x))
+
+    (* shift 1 step on the left elements of a starting at position i+1 (we loose element i) *)
+    (* [ 1 2 3 4 5 6 ] -> [ 1 3 4 5 6 _ ]  *)
+    let shift_left  a i b = 
+      try (
+	blit a 0 b 0 (pred i);
+	blit a (i+1) b i ((Array.length a) - i - 1)
+      ) with Invalid_argument x -> raise (Invalid_argument ("shift_left:"^x))
 
 
     type t = {mutable root: node_t}
@@ -884,116 +916,116 @@ struct
 	blit a (a_min+1) na 0 a_min;             (* copy the second half of the cells      *)
 	fill a (a_min) (a_min+1) EmptyCell;      (* erase them from the full leaf          *)
 	Some(median,Leaf(na))
-	
-
-      (* [ 1 2 3 4 5 ] -> [ 1 2 ] [3] [ 4 5 ] *)
-      let split_leaf =
-	let split_leaf_even a =
-	  let na = create_cell_array () 
-	  and median = a.(a_min)
-	  in 
-	  blit a (a_min+1) na 0 a_min;             (* copy the second half of the cells      *)
-	  fill a (a_min) (a_min+1) EmptyCell;      (* erase them from the full leaf          *)
-	  Some(median,Leaf(na))
-	and split_leaf_odd a =
-	  let na = create_cell_array ()
-	  and median = a.(a_med)
-	  in 
-	  blit a (a_med+1) na 0 a_min;             (* copy the second half of the cells      *)
-	  fill a (a_med) (a_min+1) EmptyCell;      (* erase them from the full leaf          *)
-	  Some(median,Leaf(na))
-	in
-	if (a_max mod 2) = 0
-	then split_leaf_even
-	else split_leaf_odd
-
 	  
-      (* [ a 1 b 2 c 3 d 4 e 5 f ] -> [a 1 b 2 c ] [3] [ d 4 e 5 f ] *)
-      and split_node =
-	let split_node_even s a = 
-	  let na = create_cell_array ()
-	  and ns = create_interval_array ()
-	  and median = a.(a_min)                  (* the median value of the full node      *)
-	  in 
-	  blit a (a_min+1) na 0 a_min;            (* copy the second half of the cells      *)
-	  fill a (a_min) (a_min+1) EmptyCell;     (* erase them from the full node          *)
-	  blit s (a_min+1) ns 0 (a_min+1);        (* copy the second half of the nodes      *)
-	  fill s (a_min+1) (a_min+1) EmptyNode;   (* erase them from the full node          *)
-	  Some(median,Node(ns,na))                (* return the copy as a median + new node *)
-	and split_node_odd s a =
-	  let na = create_cell_array ()
-	  and ns = create_interval_array ()
-	  and median = a.(a_med)                  (* the median value of the full node      *)
-	  in 
-	  blit a (a_med+1) na 0 a_min;            (* copy the second half of the cells      *)
-	  fill a (a_med) (a_med) EmptyCell;       (* erase them from the full node          *)
-	  blit s (a_med+1) ns 0 (a_med);          (* copy the second half of the nodes      *)
-	  fill s (a_med+1) (a_med) EmptyNode;     (* erase them from the full node          *)
-	  Some(median,Node(ns,na))                (* return the copy as a median + new node *)
-	    
-	in if (a_max mod 2) = 0 
-	  then split_node_even
-	  else split_node_odd
-	    
+
+    (* [ 1 2 3 4 5 ] -> [ 1 2 ] [3] [ 4 5 ] *)
+    let split_leaf =
+      let split_leaf_even a =
+	let na = create_cell_array () 
+	and median = a.(a_min)
+	in 
+	blit a (a_min+1) na 0 a_min;             (* copy the second half of the cells      *)
+	fill a (a_min) (a_min+1) EmptyCell;      (* erase them from the full leaf          *)
+	Some(median,Leaf(na))
+      and split_leaf_odd a =
+	let na = create_cell_array ()
+	and median = a.(a_med)
+	in 
+	blit a (a_med+1) na 0 a_min;             (* copy the second half of the cells      *)
+	fill a (a_med) (a_min+1) EmptyCell;      (* erase them from the full leaf          *)
+	Some(median,Leaf(na))
       in
-      let rec add_r node k v =
-	match node with
-	    EmptyNode -> Some(Cell(k,v), EmptyNode)
-	  | Leaf(a)   -> add_to_leaf a k v
-	  | Node(s,a) -> add_to_node s a k v
-	    
-      and add_to_leaf a k v =
-	let check_overflow a =
-	  if is_full a then split_leaf a else None
+      if (a_max mod 2) = 0
+      then split_leaf_even
+      else split_leaf_odd
+
+	
+    (* [ a 1 b 2 c 3 d 4 e 5 f ] -> [a 1 b 2 c ] [3] [ d 4 e 5 f ] *)
+    and split_node =
+      let split_node_even s a = 
+	let na = create_cell_array ()
+	and ns = create_interval_array ()
+	and median = a.(a_min)                  (* the median value of the full node      *)
+	in 
+	blit a (a_min+1) na 0 a_min;            (* copy the second half of the cells      *)
+	fill a (a_min) (a_min+1) EmptyCell;     (* erase them from the full node          *)
+	blit s (a_min+1) ns 0 (a_min+1);        (* copy the second half of the nodes      *)
+	fill s (a_min+1) (a_min+1) EmptyNode;   (* erase them from the full node          *)
+	Some(median,Node(ns,na))                (* return the copy as a median + new node *)
+      and split_node_odd s a =
+	let na = create_cell_array ()
+	and ns = create_interval_array ()
+	and median = a.(a_med)                  (* the median value of the full node      *)
+	in 
+	blit a (a_med+1) na 0 a_min;            (* copy the second half of the cells      *)
+	fill a (a_med) (a_med) EmptyCell;       (* erase them from the full node          *)
+	blit s (a_med+1) ns 0 (a_med);          (* copy the second half of the nodes      *)
+	fill s (a_med+1) (a_med) EmptyNode;     (* erase them from the full node          *)
+	Some(median,Node(ns,na))                (* return the copy as a median + new node *)
+	  
+      in if (a_max mod 2) = 0 
+	then split_node_even
+	else split_node_odd
+	  
+    in
+    let rec add_r node k v =
+      match node with
+	  EmptyNode -> Some(Cell(k,v), EmptyNode)
+	| Leaf(a)   -> add_to_leaf a k v
+	| Node(s,a) -> add_to_node s a k v
+	  
+    and add_to_leaf a k v =
+      let check_overflow a =
+	if is_full a then split_leaf a else None
+      in
+      let rec add_leaf_r a k v i =
+	match a.(i) with 
+	    EmptyCell   -> a.(i) <- Cell(k,v); check_overflow a
+	  | Cell(ck,cv) -> 
+	    match compare k ck with
+		Above -> add_leaf_r a k v (i+1)
+	      | Below -> shift_right a i; a.(i) <- Cell(k,v); check_overflow a
+	      | Equal -> a.(i) <- Cell(k,v); None
+      in add_leaf_r a k v 0
+      
+    and add_to_node s a k v = 
+      let rec add_node_r s a k v i =
+	let check_bubble b =
+	  match b with
+	      None        -> None
+	    | Some((m,n)) -> 
+	      shift_right a i; 
+	      a.(i) <- m; shift_right s (i+1); s.(i+1) <- n; 
+	      if is_full a then split_node s a else None
 	in
-	let rec add_leaf_r a k v i =
-	  match a.(i) with 
-	      EmptyCell   -> a.(i) <- Cell(k,v); check_overflow a
-	    | Cell(ck,cv) -> 
-	      match compare k ck with
-		  Above -> add_leaf_r a k v (i+1)
-		| Below -> shift_right a i; a.(i) <- Cell(k,v); check_overflow a
-		| Equal -> a.(i) <- Cell(k,v); None
-	in add_leaf_r a k v 0
-	
-      and add_to_node s a k v = 
-	let rec add_node_r s a k v i =
-	  let check_bubble b =
-	    match b with
-		None        -> None
-	      | Some((m,n)) -> 
-		shift_right a i; 
-		a.(i) <- m; shift_right s (i+1); s.(i+1) <- n; 
-		if is_full a then split_node s a else None
-	  in
-	  match a.(i) with 
-	      EmptyCell   -> check_bubble (add_r s.(i) k v)
-	    | Cell(ck,cv) -> 
-	      match compare k ck with
-		  Above -> add_node_r s a k v (i+1)
-		| Below -> check_bubble (add_r s.(i) k v)
-		| Equal -> (a.(i) <- Cell(k,v)); None
-		  
-	in add_node_r s a k v 0
-	
-      in let check_root_bubble tree b =
-	   match b with
-	       None       -> ()
-	     | Some (m,n) -> 
-	       let c = create_cell_array () 
-	       and i = create_interval_array () 
-	       in ignore ( 
-		 i.(0) <- tree.root; 
-		 i.(1) <- n; 
-		 c.(0) <- m; 
-		 tree.root <- Node(i,c)
-	       )
-	 in match tree.root with
-	     EmptyNode  -> 
-	       let c = create_cell_array () 
-	       in c.(0) <- Cell(k,v)
-	   | Leaf (a)   -> check_root_bubble tree (add_to_leaf a k v)
-	   | Node (s,a) -> check_root_bubble tree (add_to_node s a k v) 
+	match a.(i) with 
+	    EmptyCell   -> check_bubble (add_r s.(i) k v)
+	  | Cell(ck,cv) -> 
+	    match compare k ck with
+		Above -> add_node_r s a k v (i+1)
+	      | Below -> check_bubble (add_r s.(i) k v)
+	      | Equal -> (a.(i) <- Cell(k,v)); None
+		
+      in add_node_r s a k v 0
+      
+    in let check_root_bubble tree b =
+	 match b with
+	     None       -> ()
+	   | Some (m,n) -> 
+	     let c = create_cell_array () 
+	     and i = create_interval_array () 
+	     in ignore ( 
+	       i.(0) <- tree.root; 
+	       i.(1) <- n; 
+	       c.(0) <- m; 
+	       tree.root <- Node(i,c)
+	     )
+       in match tree.root with
+	   EmptyNode  -> 
+	     let c = create_cell_array () 
+	     in c.(0) <- Cell(k,v)
+	 | Leaf (a)   -> check_root_bubble tree (add_to_leaf a k v)
+	 | Node (s,a) -> check_root_bubble tree (add_to_node s a k v) 
 
 
     (* -- remove a value in the tree ------------------- *)

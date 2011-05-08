@@ -1,12 +1,13 @@
 
 let _ = Random.init (int_of_float (Unix.time ()))
 
+
 let dump_data = false
 
 let min = 0
-let max = 8000
+let max = 80000
 
-let count = 99
+let count = 999
 
 let dotty_folder = "dots"
 

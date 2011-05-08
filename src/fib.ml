@@ -1,22 +1,63 @@
-(* module CList = CircularList *)
 
 (*
   Fibonacci heap implementation.
   This structure is very good for priority queues. 
-  make-heap, insert, find-min, union, decrease-key should be done in amortized O(1)
-  and delete-min, delete in amortized O(log n).
-  However, this implementation doesn't use the circular double linked list as it should
-  and therefore some operations fall back to a worse case of O(n) :(
+  make, add, find-min, union, decrease-key should be done in amortized O(1) and find, 
+  remove-min, remove in amortized O(log n).
+  However,  this implementation doesn't use the circular double linked list ( as done 
+  in  the  original implementation) to allow uses without side-effects, and therefore 
+  the union op isn't O(1) amortized anymore, and the remove-min and remove ops suffer
+  as well :(
+
+  Algorithm notes:
+  The heap works by storing several trees in a list, with the following constraints:
+  - Each node must only have children of key above its own. 
+  - The  list  head must always point to the minimum entry in the list (which is also 
+    the minimum value of the heap, as a consequence of the 1st constraint).
+  - A node is colored : it must be either gray or black.
+
+  Definition:
+  The degree of a node is the number of sub-trees it is currently holding.
   
+  When  adding a new entry in the heap, we just put it as the root of a new tree, and 
+  check if it may become the new minimum.
+  When  removing  the  minimum  value of the heap, we clip all its children and plant 
+  them in the root list as new trees. We also consolidate the heap, by grafting trees 
+  to trees having the same degree, thus ending with trees of unique degree.
+
 *)
 
 module type OrderedType =
 sig 
   type key_t
-  val compare       : key_t -> key_t -> int
+  val minus_infinity : key_t   (* the absolute minimum value possible for type key_t *)
+  val compare        : key_t -> key_t -> int
 end
 
-module Make(O : OrderedType) =
+module type FIBONACCI =
+sig
+
+  type key_t
+  type 'a t
+
+  val make   : unit -> 'a t
+  val size   : 'a t -> int
+  val add    : 'a t -> key_t -> 'a -> 'a t
+  val find   : 'a t -> key_t -> 'a
+  val iter   : ((key_t * 'a) -> unit) -> 'a t -> unit
+  val min    : 'a t -> key_t * 'a
+  val decrease_key : 'a t -> key_t -> key_t -> 'a t
+  val remove_min : 'a t -> 'a t
+  val remove : 'a t -> key_t -> 'a t * 'a
+  val dump   : (key_t -> string) -> ('a -> string) -> 'a t -> string -> string -> unit
+    
+  val check  : (key_t -> string) -> 'a t -> unit
+    
+  exception Inconsistency of string
+      
+end
+
+module Make(O : OrderedType) : FIBONACCI with type key_t = O.key_t = 
 struct
 
   type key_t = O.key_t
@@ -37,7 +78,7 @@ struct
 
   let tree_roots (l, s, d)  = l
   let tree_size (l, s, _)   = s
-  let tree_degree (l, _, d) = List.length l
+  let tree_degree (l, _, d) = d
 
   let node_degree (Node (_,_,l)) = tree_degree l
   let node_size (Node (_, _, l)) = tree_size l
@@ -91,15 +132,6 @@ struct
     Node (node_color n1, node_content n1, tree_insert (node_tree n1) n2)
 
   (* ------------------------------------------------- *)
-  (* the heap (or root tree) is structurally the same as the inner trees, 
-     however  the last int represents the maximum degree within the tree, 
-     not  the  degree  of the tree, since the root node list isn't solid.
-     We  need  the  maximum  degree  for the consolidation phase, when we 
-     allocate an array to store the trees to merge. 
-     The  root  tree  list can be as large as the number of elements, but 
-     then  we  will  combine  the  first elements, and we will need up to 
-     log_phi(n) cells in the array anyway. 
-  *)
 
   type 'a t = 'a tree
 
@@ -107,19 +139,69 @@ struct
 
   let size = tree_size
 
+  let add = tree_add
+
   let degree = tree_degree
 
-  let dump fkey (t : 'a t) filename dirname = 
+
+
+  (* consistency check =
+     it should verify that :
+     - all the nodes are in coherent order, that is, any node key is below 
+       the keys of its children
+     - the degree of each node is correct
+     - the total number of element for each node is correct
+     - the min element is the first of the tree
+  *)
+  exception Inconsistency of string
+
+  let check fkey (t : 'a t) = 
+    let rec check_tree (l, s, d) kparent =
+(*      Printf.fprintf stderr "check_tree input : parent = '%s' s = %d, d = %d\n" (fkey kparent) s d; *)
+      let rs, rd = check_list l kparent in
+(*      Printf.fprintf stderr "check_tree check_list : '%s' s = %d, d = %d\n" (fkey kparent) rs rd; *)
+      if rs != s then (
+	let s = Printf.sprintf "invalid size for node '%s' : %d (real : %d)" (fkey kparent) s rs in
+	raise (Inconsistency s)
+      );
+      if rd != d then (
+	let s = Printf.sprintf "invalid degree for node '%s' : %d (real : %d)" (fkey kparent) d rd in
+	raise (Inconsistency s)
+      );
+      rs, rd
+
+    and check_list l kparent =
+      let ls, ld = List.fold_left (fun acc n -> acc + (succ (fst (check_node kparent n)))) 0 l, List.length l in
+(*      Printf.fprintf stderr "check_list output : parent = '%s' s = %d, d = %d\n" (fkey kparent) ls ld; *)
+      ls, ld
+
+    and check_node kparent (Node (c, (k,v), t)) =
+(*      Printf.fprintf stderr "check_node input : parent = '%s'\n"  (fkey kparent); *)
+      if compare k kparent < 0 then (
+	let s = Printf.sprintf "invalid node order : parent key '%s' above current '%s'" (fkey kparent) (fkey k) in
+	raise (Inconsistency s)
+      );
+      check_tree t k
+
+    in
+(*    prerr_endline "-- CHECK ---------------------------------------------";
+    Printf.fprintf stderr "check_tree root input : s = %d, d = %d\n" (tree_size t) (tree_degree t); *)
+    ignore (check_tree t O.minus_infinity)
+(*    prerr_endline "------------------------------------------------------" *)
+
+  (* ------------------------------------------------- *)
+
+  let dump fkey fvalue (t : 'a t) filename dirname = 
     let file = open_out (dirname^"/"^filename^".dot") in
     let dump_link parent child =
       output_string file (parent^" -> "^child^";\n")
-    and make_label n = fkey (node_content n)
-    and make_id n = fkey (node_content n) 
+    and make_label n = (fkey (node_key n))^"_"^(fvalue (node_value n))
+    and make_id n = fkey (node_key n)
     and string_of_color c = match c with Black -> "black", "white" | _ -> "grey", "black" 
     in
     let node_attr id label c s d =
       let bc, fc = string_of_color c in
-      (id^" [ style=filled, fillcolor= "^bc^", color= "^fc^", label =\""^label^":["^(string_of_int s)^";"^(string_of_int d)^"]\" ];\n")
+      (id^" [ style=filled, fillcolor= "^bc^", fontcolor= "^fc^", label =\""^label^":["^(string_of_int s)^";"^(string_of_int d)^"]\" ];\n")
     in
     let rec node_dump parent (Node (c, k, (l, s, d)) as n) = 
       let label = make_label n
@@ -136,57 +218,68 @@ struct
     output_string file "}";
     close_out file
 
+  (* ------------------------------------------------- *)
 
-(*
-  (* add a (key,value) to a heap --
-     max degree doesn't change
-     O(1) 
-  *)
-  let add (t : 'a t) (k : key_t) (v : 'a) = 
-    let nt = node_make Gray k v in
-    match t with
-	([], _, _)           -> ([nt], 1, 1)
-      | (m::xs as l, s, d)   -> 
-	if (node_compare nt m) <= 0 
-	then ((nt::l), succ s, d) 
-	else (m::nt::xs, succ s, d)
-*)
-  let add = tree_add
+  let find ((l, s, d) as t : 'a t)  (k : key_t) : 'a =
+    let rec find_node n k =
+      match compare (node_key n) k with
+	  0             -> Some (node_value n)
+	| c when c < 0  -> find_list (tree_roots (node_tree n)) k
+	| _             -> None
+    and find_list l k =
+      match l with 
+	| []    -> None
+	| n::ns -> 
+	  match find_node n k with
+	      None -> find_list ns k
+	    | r    -> r
+    in
+    match find_list l k with
+	None   -> raise Not_found
+      | Some v -> v
 
-  (* search the new min value to point to, check the max degree *)
+
+  (* the correct ordering is not to be expected *)
+  let iter f t =
+    let rec iter_node f (Node (c, v, l)) =
+      f v;
+      iter_tree l
+    and iter_tree t =
+      let l = tree_roots t in
+      List.iter (fun n -> iter_node f n) l
+    in
+    iter_tree t
+
+  (* search the new min value to point to *)
   let update_min ((l, s, d) as t : 'a t) =
-    let max_degree n d = max (node_degree n) d in
-    let rec update_min m l nl d = 
+    let rec update_min m l nl = 
       match l with
-	  []    -> m::nl, d
+	  []    -> m::nl
 	| x::xs -> ( 
-	  let d = max_degree x d in
 	  if node_compare m x <= 0 
 	  then 
-	    update_min m xs (x::nl) d
+	    update_min m xs (x::nl)
 	  else 
-	    update_min x xs (m::nl) d
+	    update_min x xs (m::nl)
 	)
     in
     match l with 
 	[]    -> (l, s, d)
       | x::xs -> (
-	let l, d = update_min x xs [] d in
+	let l = update_min x xs [] in
 	(l, s, d)
       )
 
-  (* not computing the real value here, takes time, ideally, we should create a table of logs *)
-  let log_phi x = 
-    if x <= 7 then 3
-    else 
-      x / 2
+  let log_phi s d = 
+    max (
+      if s <= 7 then 3
+      else 
+	s / 2 ) (succ d)
 
   (* check the heap and make sure that we don't have any couple of trees of the same degree *)
-  let consolidate (l, s, d) = 
-(*    Printf.fprintf stderr "consolidate : size = %d\n" s;
-    Printf.fprintf stderr "consolidate : max degree = %d\n" d; *)
-    let max_i = log_phi s in
-(*    Printf.fprintf stderr "consolidate : array size = %d\n" max_i; *)
+  let consolidate (t : 'a t) = 
+    let s = tree_size t in
+    let max_i = log_phi s (tree_degree t) in
     let v = Array.make max_i (None) in
     let restore_t () = 
       (* find the first node in the array *)
@@ -211,10 +304,10 @@ struct
 	match xo with
 	  | None   -> (m, l, d)
 	  | Some x -> 
-	    let nd = max d (node_degree x) in  (* find the max degree *)
+	    let nd = succ d in
 	    if node_compare m x <= 0 then (m, x::l, nd) else (x, m::l, nd)
       in
-      let (m, l, d) = fold_left insert (m, [], 0) v i in
+      let (m, l, d) = fold_left insert (m, [], 1) v i in
       (m::l, s, d)
     in
     let rec consolidate c l =
@@ -222,23 +315,20 @@ struct
 	if (node_compare n1 n2) <= 0 then node_insert n1 n2 else node_insert n2 n1
       in
       let d = node_degree c in
-(*      Printf.fprintf stderr "consolidate : current = %d - degree = %d\n" (Obj.magic (node_key c)) d; *)
       match v.(d) with
 	  None    -> (
-(*	    Printf.fprintf stderr "consolidate : no duplicate for current\n"; *)
 	    v.(d) <- Some c; 
 	    match l with 
 	      | []    -> restore_t ()
 	      | x::xs -> consolidate x xs
 	  )
 	| Some c' -> (
-(*	    Printf.fprintf stderr "consolidate : duplicate = %d found for current\n" (Obj.magic (node_key c')); *)
 	  v.(d) <- None;
 	  consolidate (combine c c') l
 	)
     in
-    match l with
-      | []    -> (l, s, d)
+    match tree_roots t with
+      | []    -> t
       | m::l  -> consolidate m l
 
   (* union of 2 heaps : O(degree1 + degree2) *)
@@ -252,22 +342,24 @@ struct
 	else (m2::m1::(x1s @ x2s), n1 + n2, max d1 d2)
 	  
   (* removal of minimum element : O(ln n) *)
-  let delete_min (t : 'a tree) : 'a tree =
-(*    Printf.fprintf stderr "delete_min\n"; *)
+  let remove_min (t : 'a tree) : 'a tree =
+(*    Printf.fprintf stderr "remove_min input : s = %d d = %d\n" (tree_size t) (tree_degree t); *)
     match t with
       | ([], _, _)    -> raise Not_found
       | (m::xs, n, d) -> 
 	let tm = node_tree m in
-	let d' = d + (tree_degree tm)
+	let d' = (pred d) + (tree_degree tm)
 	and l = xs @ (tree_roots tm) in
-	update_min (consolidate (l, pred n, d'))
+	let t' = consolidate (l, pred n, d') in
+(*	Printf.fprintf stderr "remove_min consolidate : s = %d d = %d\n" (tree_size t') (tree_degree t'); *)		
+	update_min t'
 
-  (*
   (* decrease key : reduce the priority of value of key k to k' 
      possible outcomes:
+     0 - the key isn't found
      1 - the decrease doesn't change the order 
      2 - the decrease put the node n below its parent 
-         move the node to the heap roots
+         => move the node to the heap roots
          2a - its parent isn't marked : mark it
          2b - its parent is marked, unmark and move it to the roots, loop to gp
      => the function goes down the heap, find the node to change, and check the state
@@ -277,74 +369,69 @@ struct
         check the color.
    *)
   let decrease_key t k k' : 'a tree =
-   let rec find_node (Node (nc, (nk, nv), nt) as n) k : ('a node option, 'a tree, bool) option =
+    let rec find_node (Node (nc, ((nk, nv) as nkv), nt) as n) kparent : (('a node) option * 'a tree * bool) option =
       match compare nk k with
-	  0             -> Some (Some (Node (nc, (k', nv), nt)), ([], 0, 0), true)
-	| c when c > 0  -> None 
+	| 0             -> (
+	  let n' = Node (nc, (k', nv), nt) in
+	  match compare kparent k' with 
+	    | 0            -> failwith "fix-me : duplicate key"
+	    | c when c < 0 -> Some (Some n', ([], 0, 0), false)                      (* case 1 *)
+	    | c when c > 0 -> Some (None,([n'], succ (tree_size nt), 1), true)       (* case 2 *)
+	)
+	| c when c > 0  -> None (* case 0 *)
 	| c when c < 0  -> (
-	  match find_tree nt k with
-	    | None                           -> None
-	    | Some (nt, (rl, rs, rd), true)  -> Some (
+	  match find_tree nt nk with
+	    | None                            -> None       (* case 0 *)
+	    | Some (nt', (rl, rs, rd), true)  -> Some (     (* case 2 *)
 	      match nc with
-		  Grey  -> Some (Node (Black, (nk, nv), nt)), (rl, rs, rd), false
-		| Black -> None, ((Node (Grey, (nk, nv), nt)::rl, succ rs, succ rd)), true
+		| Gray  -> 
+		  Some (Node (Black, nkv, nt')), (rl, rs, rd), false          (* case 2a *)
+		| Black -> 
+		  let n' = Node (Gray, nkv, nt') in
+		  None, (n'::rl, rs + (tree_size nt') + 1, succ rd), true     (* case 2b *)
 	    )
-	    | Some (nt, (rl, rs, rd), false) -> Some (
-	      Some (Node (nc, (nk, nv), nt)), (rl, rs, rd), false
+	    | Some (nt', (rl, rs, rd), false) -> Some ( (* case 1 *)
+	      Some (Node (nc, (nk, nv), nt')), (rl, rs, rd), false
 	    )
 	)
-   and find_tree (l, s, d) k : ('a tree, 'a tree, bool) option =
-     match l with
-       | []     -> None
-       | n::ns  -> 
-	 match find_node n k with
-	     None                 -> (
-	       match find_tree (ns, pred s, pred d) k with
-		   None                           -> None
-		 | Some ((nl, ns, nd), rt, b)     -> Some ((n::nl,succ ns, succ nd), t, b)
-	     )
-	   | Some (Some n, t, b)  -> Some ((n::ns, s, d), t, b)
-	   | Some (None, t, b)    -> Some ((ns, pred s, pred d), t, b)
-   in
-   match find_tree t k with 
-       None              -> raise Not_found
-     | Some (nt, rt, b)  -> union nt rt
-  *)
+    and find_tree (l, s, d) kparent : ('a tree * 'a tree * bool) option =
+      match l with
+	| []     -> None (* case 0 *)
+	| n::ns  -> 
+	  match find_node n kparent with
+	    | None                 -> (
+		match find_tree (ns, pred s, pred d) kparent with
+		    None                        -> None                   (* case 0 *)
+		  | Some ((nl, ns, nd), rt, b)  -> Some (
+		    (n::nl,succ ns, succ nd), rt, b)                      (* case 1, 2 *)
+	      )
+	    | Some (Some n, t, b)  -> Some ((n::ns, s - (tree_size t), d), t, b)       (* case 1 *)
+	    | Some (None, t, b)    -> Some ((ns, s - (tree_size t), pred d), t, b)     (* case 2 *)
+    in
+    let merge (l1, s1, d1) (l2, s2, d2) = 
+      let rec merge m l1 l2 =
+	match l2 with 
+	  | []    -> m::l1
+	  | x::xs -> if node_compare m x <= 0 then merge m (x::l1) xs else merge x (m::l1) xs
+      in
+      match l1 with
+	| []    -> update_min (l2, s2, d2) 
+	| m::xs -> (merge m xs l2, s1 + s2, d1 + d2)
+    in
+    match find_tree t k with 
+      | None              -> raise Not_found
+      | Some (nt, rt, _)  -> merge nt rt
+	
   let min (l, s, d) = 
     match l with
       | []    -> raise Not_found
       | x::xs -> node_content x
 
-  let find ((l, s, d) as t : 'a t)  (k : key_t) : 'a =
-    let rec find_node n k =
-      match compare (node_key n) k with
-	  0             -> Some (node_value n)
-	| c when c < 0  -> find_list (tree_roots (node_tree n)) k
-	| _             -> None
-    and find_list l k =
-      match l with 
-	| []    -> None
-	| n::ns -> 
-	  match find_node n k with
-	      None -> find_list ns k
-	    | r    -> r
-    in
-    match find_list l k with
-	None   -> raise Not_found
-      | Some v -> v
+  let remove t k =
+    let t' = decrease_key t k O.minus_infinity in
+    let m = min t' in
+    remove_min t', snd m
 
-
-
-  (* the correct ordering is not guaranteed *)
-  let iter f t =
-    let rec iter_node f (Node (c, v, l)) =
-      f v;
-      iter_tree l
-    and iter_tree t =
-      let l = tree_roots t in
-      List.iter (fun n -> iter_node f n) l
-    in
-    iter_tree t
 
 end
 
