@@ -35,7 +35,8 @@ let tree_test_list =
 	       TestLabel ("Btree (imperative)", TestCase(fun _ -> Btree_test.test ()));
 	       TestLabel ("Rbtree (functional)", TestCase(fun _ -> Rbtree_test.fun_test ()));
 	       TestLabel ("Rbtree (imperative)", TestCase(fun _ -> Rbtree_test.imp_test ()));
-	       TestLabel ("Fibonacci (functional)", TestCase(fun _ -> Fib_test.test ()))
+	       TestLabel ("Fibonacci (functional)", TestCase(fun _ -> Fib_test.test ()));
+	       TestLabel ("Trie (functional)", TestCase(fun _ -> Trie_test.test ()))
 	     ]
 	    )
 

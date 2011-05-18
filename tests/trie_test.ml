@@ -1,30 +1,8 @@
 open OUnit
 open Setup
 
-(* FIBONACCI HEAP ---------------------------------- *)
 
-module FibOT =
-struct 
-  type key_t = int
-  let minus_infinity = min_int
-  let compare = Pervasives.compare
-end
-
-(* The test : 
-   We have 2 structures : free and used 
-   - free is a queue of values available for insertion in the heap
-   - used is the set of values which have been taken from free and
-     inserted in the heap.
-   The test runs a number of steps (Setup.count). At each step, we
-   decide which operation we will test on the heap, depending on 
-   the state of free and used.
-   The operations we test are :
-   - add
-   - find
-   - remove_min / min
-   - remove
-*)
-module Test(Tree : Fib.T with type key_t = int) =
+module Test(Tree : Trie.T with type key_t = int and type bin_t = int) =
 struct
 
   type key_t = Tree.key_t
@@ -35,6 +13,20 @@ struct
 
   module UsedM = Map.Make(struct type t = int let compare = compare end)
   module UsedS = Set.Make(struct type t = int let compare = compare end)
+
+  let string_of_bin size x = 
+    let rec string_ x i s =
+      if i < 0 
+      then s 
+      else 
+	let v = 
+	  if x mod 2 = 0 then "0" else "1"
+	in
+	string_ (x lsr 1) (pred i) (v^s)
+    in
+    string_ x size ""
+
+  let string_of_key k = string_of_bin Sys.word_size k
 
   let used = ref (UsedM.empty, UsedS.empty)
 
@@ -71,7 +63,7 @@ struct
   let dump       = 
     let dump t step op key = 
       let fname = Printf.sprintf "op_%04d_%s_%d" step op key in
-      Tree.dump string_of_int string_of_int t fname dotty_folder in
+      Tree.dump string_of_key string_of_int t fname dotty_folder in
     if Setup.dump_data 
     then dump
     else (fun t s o k -> ())
@@ -98,11 +90,12 @@ struct
 	
   (* remove the minimum value from the tree and assert that it worked *)
   let check_remove_min i t =
+    let v = Tree.min t in
     let v, t' = 
       try
-	snd (Tree.min t), Tree.remove_min t
+	snd v, Tree.remove_min t
 (*	assert_equal ~msg:("remove : min not equal to :"^(string_of_int x)) v x; *)
-      with Not_found -> assert_failure ("failed to remove min at step "^(string_of_int i))
+      with Not_found -> assert_failure ("failed to remove min "^(string_of_key (fst v))^" at step "^(string_of_int i))
     in
     dump t' i "remove_min" v;
     assert_raises ~msg:("found removed item #"^(string_of_int i)^":"^(string_of_int v))(Not_found) (fun () -> ignore (Tree.find t' v)); t', v
@@ -110,19 +103,7 @@ struct
   (* remove a value from the tree and assert that it worked *)
   let check_remove i k t =
     let remove t k =
-      let t' = Tree.decrease_key t k FibOT.minus_infinity in
-      dump t' i "decrease_key" k;
-      ignore (
-      try (
-	Tree.check (string_of_int) t'
-      )
-      with Tree.Inconsistency s -> (
-	Printf.fprintf stderr "consistency error at step #%d\n" i;
-	assert_failure ("consistency check at step #"^(string_of_int i)^" : "^s)
-      )
-      );
-      let m = Tree.min t' in
-      Tree.remove_min t', snd m
+      Tree.remove t k
     in
     let t' = 
       try
@@ -157,7 +138,7 @@ struct
 	  t := t';
 	  release_element v
 	) 
-	| 2   -> ( 
+	| 2   -> ( (* remove op *)
 	  let v = random_used_element () in 
 	  let t', v = check_remove c v !t in
 	  t := t';
@@ -180,6 +161,20 @@ struct
 
 end
 
-module F = Fib.Make(FibOT) 
+module TrieConf = 
+struct
 
-let test = let module T = Test(F) in T.test
+  type key_t = int
+  type bin_t = int
+      
+  let convert k    = k
+  let length       = Sys.word_size
+  let shift_width  = 2
+  let shift k      = k mod 2, k lsr 1
+  let compare      = compare
+
+end
+
+let test =
+  let module TB = Trie.Make(TrieConf) in
+  let module T = Test(TB) in T.test

@@ -34,7 +34,7 @@ sig
   val compare        : key_t -> key_t -> int
 end
 
-module type FIBONACCI =
+module type T =
 sig
 
   type key_t
@@ -57,7 +57,7 @@ sig
       
 end
 
-module Make(O : OrderedType) : FIBONACCI with type key_t = O.key_t = 
+module Make(O : OrderedType) : T with type key_t = O.key_t = 
 struct
 
   type key_t = O.key_t
@@ -431,7 +431,6 @@ struct
     let t' = decrease_key t k O.minus_infinity in
     let m = min t' in
     remove_min t', snd m
-
 
 end
 

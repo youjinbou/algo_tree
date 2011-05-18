@@ -7,7 +7,7 @@ let dump_data = false
 let min = 0
 let max = 80000
 
-let count = 999
+let count = 9999
 
 let dotty_folder = "dots"
 
